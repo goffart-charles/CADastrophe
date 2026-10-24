@@ -130,32 +130,50 @@ class _Evaluator:
         try:
             return self._evaluate(feature,sketch,previous_shape,supports)
         except (ValueError,RuntimeError,TypeError,ArithmeticError) as exc:
-            from cadastrophe.core.feature_model import EvaluationDiagnostic
-            from cadastrophe.core.reference_repair import reference_entries, entry_issue
-            from cadastrophe.core.construction_state import feature_dependencies
-            states = dict(self.supports)
-            predecessor = feature_dependencies(self.document.objects, feature).predecessor
-            if predecessor is not None and self.previous is not None:
-                states[predecessor] = self.previous
-            context = _CalculationDocument(self.document, states)
-            broken = None
-            try:
-                entries = sorted(reference_entries(context, feature.id), key=lambda e: e.role == "sketch")
-                broken = next((entry.slot for entry in entries
-                               if entry_issue(context, entry, self.extrusions._profiles)), None)
-            except (ValueError, RuntimeError, KeyError):
-                pass  # Keep the original geometry error if no exact slot can be established.
-            from cadastrophe.core.feature_model import InactiveReferenceError
-            inactive = isinstance(exc, InactiveReferenceError)
-            return EvaluationResult(ResultStatus.BLOCKED if inactive else ResultStatus.ERROR, message=str(exc), feature_id=feature.id,
-                diagnostics=(EvaluationDiagnostic("inactive_reference" if inactive else "reference_invalid" if broken else "calculation_failed",
-                                                  str(exc), feature.id, exc.root_ids if inactive else (feature.id,), broken),))
+            return self._failure(feature, exc)
 
-    def _evaluate(self, feature, sketch, previous_shape, supports):
-        from cadastrophe.core.native_naming import NamingTrace
-        from cadastrophe.core.feature_objects import ReplayFeature
+    def evaluate_steps(self, feature, sketch, previous_shape, supports):
+        from cadastrophe.core.feature_objects import SweepFeature, ReplayFeature
+        if not isinstance(feature, (SweepFeature, ReplayFeature)):
+            return self.evaluate(feature, sketch, previous_shape, supports)
+        from .operation_replay import generating_volumes_steps, replay_steps
         from cadastrophe.core.operation_effects import apply_effects
-        from .operation_replay import generating_volumes, replay
+        try:
+            context, trace = self._context(feature, sketch, supports)
+            if isinstance(feature, ReplayFeature):
+                shape, effects = yield from replay_steps(self.extrusions, context, feature, previous_shape, trace)
+            else:
+                effects = yield from generating_volumes_steps(self.extrusions, context, feature, previous_shape, trace)
+                yield 0, 1, "Application du balayage au corps"
+                shape = apply_effects(previous_shape, effects, trace=trace)
+            return EvaluationResult(ResultStatus.READY, shape, topology=trace.topology, effects=effects)
+        except (ValueError,RuntimeError,TypeError,ArithmeticError) as exc:
+            return self._failure(feature, exc)
+
+    def _failure(self, feature, exc):
+        from cadastrophe.core.feature_model import EvaluationDiagnostic
+        from cadastrophe.core.reference_repair import reference_entries, entry_issue
+        from cadastrophe.core.construction_state import feature_dependencies
+        states = dict(self.supports)
+        predecessor = feature_dependencies(self.document.objects, feature).predecessor
+        if predecessor is not None and self.previous is not None:
+            states[predecessor] = self.previous
+        context = _CalculationDocument(self.document, states)
+        broken = None
+        try:
+            entries = sorted(reference_entries(context, feature.id), key=lambda e: e.role == "sketch")
+            broken = next((entry.slot for entry in entries
+                           if entry_issue(context, entry, self.extrusions._profiles)), None)
+        except (ValueError, RuntimeError, KeyError):
+            pass  # Keep the original geometry error if no exact slot can be established.
+        from cadastrophe.core.feature_model import InactiveReferenceError
+        inactive = isinstance(exc, InactiveReferenceError)
+        return EvaluationResult(ResultStatus.BLOCKED if inactive else ResultStatus.ERROR, message=str(exc), feature_id=feature.id,
+            diagnostics=(EvaluationDiagnostic("inactive_reference" if inactive else "reference_invalid" if broken else "calculation_failed",
+                                              str(exc), feature.id, exc.root_ids if inactive else (feature.id,), broken),))
+
+    def _context(self, feature, sketch, supports):
+        from cadastrophe.core.native_naming import NamingTrace
         from cadastrophe.core.body_history import result_at
         states = dict(self.supports)
         for ref,shape in supports.items():
@@ -169,6 +187,13 @@ class _Evaluator:
             if callable(provider):
                 sources = provider(context, sketch.id)
         trace = NamingTrace(feature.id, self.previous, sources)
+        return context, trace
+
+    def _evaluate(self, feature, sketch, previous_shape, supports):
+        from cadastrophe.core.feature_objects import ReplayFeature
+        from cadastrophe.core.operation_effects import apply_effects
+        from .operation_replay import generating_volumes, replay
+        context, trace = self._context(feature, sketch, supports)
         if feature.operation is Operation.DRAFT:
             from .draft_geometry import apply_draft
             from cadastrophe.core.reference_geometry import resolve_reference, resolve_axis_reference

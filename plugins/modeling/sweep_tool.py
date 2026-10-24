@@ -13,6 +13,7 @@ from .selection_field import SelectionField
 
 
 class SweepSession(RevolutionSession):
+    cooperative_preview = True
     equation_extent = "roll"
     extent_label = "Rotation du profil"
     operation_name = "balayage"

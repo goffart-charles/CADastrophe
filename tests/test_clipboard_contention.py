@@ -2,9 +2,12 @@
 import os
 import subprocess
 import sys
+from threading import Thread
+from time import monotonic
 
 import pytest
 from PySide6.QtCore import QMimeData
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from cadastrophe.core.clipboard import MimeClipboard, ObjectClipboard, ClipboardError, MIME_TYPE
@@ -29,7 +32,11 @@ def lock_clipboard(short):
     code = '''
 import ctypes, sys, time
 u = ctypes.WinDLL("user32", use_last_error=True)
-assert u.OpenClipboard(None), ctypes.get_last_error()
+deadline = time.monotonic() + 1.
+while not u.OpenClipboard(None):
+    if time.monotonic() >= deadline:
+        raise ctypes.WinError(ctypes.get_last_error())
+    time.sleep(.01)
 print("locked", flush=True)
 try:
     time.sleep(.025) if sys.argv[1] == "short" else input()
@@ -39,7 +46,21 @@ finally:
     child = subprocess.Popen([sys.executable, "-u", "-c", code, "short" if short else "held"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         creationflags=subprocess.CREATE_NO_WINDOW)
-    assert child.stdout.readline().strip() == "locked"
+    # The preceding test may have made this Qt thread the OLE clipboard owner.
+    # Keep its event loop available during setup, before the lock is confirmed.
+    # Production copy/cut itself must still run without pumping any events.
+    readiness = []
+    reader = Thread(target=lambda: readiness.append(child.stdout.readline().strip()), daemon=True)
+    reader.start()
+    deadline = monotonic()+5
+    while reader.is_alive() and monotonic() < deadline:
+        QTest.qWait(5)
+    if reader.is_alive():
+        child.kill()
+        reader.join(timeout=5)
+        child.communicate(timeout=10)
+        pytest.fail("Le processus de verrouillage ne répond pas.")
+    assert readiness == ["locked"], child.stderr.read()
     return child
 
 

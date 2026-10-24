@@ -9,6 +9,7 @@ from cadastrophe.plugin_api import LengthSpinBox
 from cadastrophe.document import SceneObject, ObjectType
 from cadastrophe.core.feature_objects import BodyObject, ExtrusionFeature, SketchSourceObject, ConstructionFeature
 from cadastrophe.core.body_history import prefix_results
+from cadastrophe.core.computation import complete, cooperative_required
 from cadastrophe.core.feature_model import (
     BodyStateRef, SketchInput, ExtrusionParameters, Operation, EvaluationResult, ResultStatus,
 )
@@ -21,6 +22,10 @@ class ExtrusionSession:
     is_cut = False
     uses_end_condition = True
     extent_label = "Profondeur"
+
+    @property
+    def cooperative_preview(self):
+        return cooperative_required(self.document.objects)
 
     def invalidate_preview(self):
         self._cache_key = None
@@ -49,6 +54,7 @@ class ExtrusionSession:
         self.selected_regions = ()
         self._hover_region = None
         self.condition = None
+        self._preview_cache = {}
 
     def create_editor(self, parent, changed):
         self.changed = changed
@@ -304,6 +310,9 @@ class ExtrusionSession:
         self.changed()
 
     def preview(self):
+        return complete(self.preview_steps())
+
+    def preview_steps(self):
         self.preview_hidden_ids = ()
         self.preview_parts = None
         if self.merge.isChecked() and self.target == "body":
@@ -346,13 +355,18 @@ class ExtrusionSession:
             self._feedback()  # Filled profile sheets would visually cap a previewed hole.
         preview = SceneObject("Aperçu de l’enlèvement" if self.is_cut else "Aperçu du bossage",
                               self._result.shape, (.72, .75, .8), id=self.body_id)
-        if self.document.history_context.position is not None:
+        if self.document.history_context.position is not None or self.cooperative_preview:
             if self._insertion_prepared is None:
-                self._insertion_prepared = self.construction(preview)
+                self._insertion_prepared = yield from self.construction_steps(preview)
             self.rebuild_warning = next((r.message for r in self._insertion_prepared[1].values() if r.shape is None), "")
         return preview
 
     def construction(self, preview):
+        if self._insertion_prepared is not None:
+            return self._insertion_prepared
+        return complete(self.construction_steps(preview))
+
+    def construction_steps(self, preview):
         document = self.document
         sketch = document.objects[self.source.value]
         supports = []
@@ -402,10 +416,11 @@ class ExtrusionSession:
             results[body.id] = EvaluationResult(ResultStatus.READY, part.shape)
             prefixes[body.id] = states
             names.update((body.name, feature.name))
-        from cadastrophe.core.body_history import preview_construction, affected_bodies
+        from cadastrophe.core.body_history import preview_construction_steps, affected_bodies
         candidate = {**document.objects, **{o.id: o for o in objects}}
-        results, prefixes = preview_construction(document, candidate, affected_bodies(candidate, (o.id for o in objects)),
-                                                 self.extrusions.evaluator, strict=False)
+        results, prefixes = yield from preview_construction_steps(document, candidate,
+            affected_bodies(candidate, (o.id for o in objects)), self.extrusions.evaluator,
+            strict=False, cache=self._preview_cache)
         if document.history_context.position is not None:
             for obj in objects:
                 if isinstance(obj, ConstructionFeature):
@@ -433,6 +448,7 @@ class ExtrusionSession:
             self.document.select_objects(key for key in self.original_selection if key in self.document.objects)
         self._result = self._cache_key = None
         self._insertion_prepared = None
+        self._preview_cache.clear()
         self.surface = self._faces = None
         self.editor = None
 

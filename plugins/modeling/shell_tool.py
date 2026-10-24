@@ -149,7 +149,7 @@ class ShellSession(RecipePreview):
         except (ValueError, RuntimeError):
             self.surface.highlight_regions()
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         try:
             if not self.thickness.hasAcceptableInput():
@@ -166,7 +166,7 @@ class ShellSession(RecipePreview):
                         id=self.feature_id, kind=ObjectType.FEATURE, body_id=body.id, operation=Operation.SHELL,
                         input_state=self.source_ref(), parameters=params)
                     objects = (replace(body, features=(*body.features, feature.id)), feature)
-                self.calculate(objects, feature)
+                yield from self.calculate_steps(objects, feature)
                 self._key = params
             self.commit_error = ""
             return SceneObject("Aperçu de la coque", self._current.shape, self.document.objects[self.body_id].color)

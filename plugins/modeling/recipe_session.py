@@ -4,7 +4,8 @@ from uuid import uuid4
 
 from cadastrophe.document import SceneObject
 from cadastrophe.core.feature_objects import BodyObject
-from cadastrophe.core.body_history import preview_construction, affected_bodies, rollback_hidden_ids
+from cadastrophe.core.body_history import preview_construction_steps, affected_bodies, rollback_hidden_ids
+from cadastrophe.core.computation import complete, cooperative_required
 
 
 def unique_name(document, prefix):
@@ -37,6 +38,13 @@ class RecipePreview:
     preview_opaque = True
     preview_added_only = False
 
+    @property
+    def cooperative_preview(self):
+        return cooperative_required(self.document.objects)
+
+    def preview(self):
+        return complete(self.preview_steps())
+
     def invalidate_preview(self):
         self._key = self._cache_key = None
 
@@ -53,6 +61,7 @@ class RecipePreview:
         self._pick_error = ""
         self.committed = self._connected = False
         self.rebuild_warning = ""
+        self._preview_cache = {}
 
     def check_snapshot(self):
         if self.services.active_document is not self.document or set(self.document.objects) != set(self.snapshot) or any(self.document.objects[k] is not v for k,v in self.snapshot.items()):
@@ -61,9 +70,14 @@ class RecipePreview:
             raise ValueError(self._pick_error)
 
     def calculate(self, objects, feature):
+        return complete(self.calculate_steps(objects, feature))
+
+    def calculate_steps(self, objects, feature):
         candidate = {**self.document.objects, **{o.id:o for o in objects}}
         affected = affected_bodies(candidate, (o.id for o in objects))
-        self._results, self._prefixes = preview_construction(self.document, candidate, affected, self.extrusions.evaluator, strict=False)
+        results, prefixes = yield from preview_construction_steps(self.document, candidate, affected,
+            self.extrusions.evaluator, strict=False, cache=self._preview_cache)
+        self._results, self._prefixes = results, prefixes
         from cadastrophe.core.feature_model import BodyStateRef, ResultStatus
         current = self._prefixes[feature.body_id][BodyStateRef(feature.body_id, feature.id)]
         if current.status is not ResultStatus.READY:
@@ -184,6 +198,7 @@ class RecipePreview:
             for picker in self.editor.findChildren(ReferencePicker):
                 picker.dispose()
         self.snapshot = {}
+        self._preview_cache.clear()
         self.preview_parts = self._objects = self._results = self._prefixes = None
         self._current = self._key = None
         self._result = self._faces = self._cache_key = None

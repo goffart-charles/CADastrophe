@@ -15,6 +15,11 @@ def generator_trace(service, document, feature):
 
 
 def generating_volumes(service, document, feature, previous, trace):
+    from cadastrophe.core.computation import complete
+    return complete(generating_volumes_steps(service, document, feature, previous, trace))
+
+
+def generating_volumes_steps(service, document, feature, previous, trace):
     if not feature.enabled:
         from cadastrophe.core.feature_model import InactiveReferenceError
         raise InactiveReferenceError("La fonction source est désactivée : " + feature.name, (feature.id,))
@@ -36,13 +41,13 @@ def generating_volumes(service, document, feature, previous, trace):
         raise ValueError("Sélectionnez au moins un profil fermé valide.")
     effects = []
     if isinstance(feature, SweepFeature):
-        from cadastrophe.core.sweep import sweep_face
+        from cadastrophe.core.sweep import sweep_face_steps
         from .sweep_path import resolve_path
         if len(faces.regions) != 1:
             raise ValueError("Choisissez une seule région fermée pour le balayage.")
         for region in faces.regions:
             path = resolve_path(service._profiles, document, p, region.face)
-            shape = sweep_face(region.face, path, p, tolerance=faces.tolerance, trace=trace)
+            shape = yield from sweep_face_steps(region.face, path, p, tolerance=faces.tolerance, trace=trace)
             effects.append(VolumeEffect(feature.operation, shape, trace.topology, (feature.id, str(len(effects))), feature.id))
     elif isinstance(feature, RevolutionFeature):
         from cadastrophe.core.revolution import revolve_face
@@ -65,6 +70,11 @@ def generating_volumes(service, document, feature, previous, trace):
 
 
 def replay(service, document, feature, previous, trace):
+    from cadastrophe.core.computation import complete
+    return complete(replay_steps(service, document, feature, previous, trace))
+
+
+def replay_steps(service, document, feature, previous, trace):
     from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
     params = feature.parameters
     owner = document.objects[feature.body_id]
@@ -133,4 +143,5 @@ def replay(service, document, feature, previous, trace):
             except (ValueError, RuntimeError) as exc:
                 raise ValueError(f"Occurrence {index+1}, {source.name} : {exc}") from exc
             generated.append(transformed)
+            yield len(generated), max(1, len(transforms)*len(effects)), f"Occurrence {index+1} · {source.name}"
     return shape, tuple(generated)

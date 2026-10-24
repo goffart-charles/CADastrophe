@@ -94,6 +94,13 @@ Les modifications numériques ordinaires concernent la configuration active ;
 `update_construction(scope="common")` modifie les valeurs communes en conservant
 les substitutions. Les ajouts et suppressions structurels restent communs.
 
+`activate_configuration`, `remove_configuration`, `set_configuration_override`
+et `validate_configurations` acceptent aussi `incremental=True`. Ils retournent
+alors un itérateur qui réserve le document dès sa création. Le transmettre à
+`services.run_computation` ou le fermer explicitement en cas d'abandon, même
+avant sa première étape. L'annulation conserve les paramètres, la configuration
+active et l'historique ; seule une candidate entièrement vérifiée est publiée.
+
 `PresentationSurface.navigating` indique un geste de caméra pendant lequel un
 éditeur peut suspendre les recherches sous le pointeur.
 
@@ -110,6 +117,14 @@ Un `ToolSession` fournit `title`, `create_editor(parent, changed)`, `preview()`,
 chaque modification de paramètres. `preview()` valide les entrées et retourne
 un `SceneObject` détaché, ou `None` si les paramètres sont incomplets ; une erreur
 explicite empêche la validation. L'hôte recalcule un aperçu frais au clic Valider.
+
+Un outil coûteux peut aussi fournir `preview_steps()` et une propriété
+`cooperative_preview` vraie. L'itérateur émet `(courant, total, libellé)` et
+retourne son `SceneObject` final. L'hôte le consomme sur les tours Qt, le ferme
+si les paramètres changent et refuse tout résultat d'une ancienne révision.
+La validation attend le résultat courant sans consommer toutes les étapes
+dans le callback du clic. `preview()` reste requis pour l'API synchrone ; les
+deux chemins doivent employer les mêmes calculs et contrôles natifs.
 
 `commit` utilise les commandes du document, dans la transaction réservée de
 l'hôte. Une erreur annule l'ensemble ; Échap annule l'aperçu sans mutation.

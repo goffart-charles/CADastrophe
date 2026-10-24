@@ -102,7 +102,7 @@ class ConfigurationsPanel(QWidget):
         definitions = (("create", "Créer…", self.ask_create, "document"),
             ("duplicate", "Dupliquer…", lambda: self.ask_create(duplicate=True), "copy"),
             ("rename", "Renommer…", self.ask_rename, "properties"),
-            ("delete", "Supprimer", lambda: self.run(lambda: operations.remove(self.document, self.selected_id())), "delete"),
+            ("delete", "Supprimer", lambda: self.run(lambda: operations.remove(self.document, self.selected_id(), incremental=True)), "delete"),
             ("activate", "Activer", self.activate_selected, "check"),
             ("validate_all", "Tout vérifier", self.validate, "reset"))
         self.actions = {}
@@ -212,13 +212,32 @@ class ConfigurationsPanel(QWidget):
         finally:
             self._updating = False
 
-    def run(self, callback):
+    def run(self, callback, *, completed=None):
         if self.document is None or not self.services.can_start_tool:
             return
         try:
+            document = self.document
             value = callback()
+            if hasattr(value, "__next__"):
+                from ..core.computation import complete, cooperative_required
+                if cooperative_required(document.objects):
+                    def done(result):
+                        if self.document is document:
+                            self.message.clear()
+                            self.refresh()
+                            if completed is not None:
+                                completed(result)
+                    def failed(error):
+                        if self.document is document:
+                            self.message.setText(str(error))
+                    return self.services.run_computation(value, "Calcul des configurations",
+                        completed=done, failed=failed,
+                        cancelled=lambda: failed("Calcul annulé ; configuration conservée."))
+                value = complete(value)
             self.message.clear()
             self.refresh()
+            if completed is not None:
+                completed(value)
             return value
         except (ValueError, RuntimeError) as exc:
             self.message.setText(str(exc))
@@ -241,7 +260,7 @@ class ConfigurationsPanel(QWidget):
 
     def activate_selected(self):
         key = self.selected_id()
-        self.run(lambda: operations.activate(self.document, key))
+        self.run(lambda: operations.activate(self.document, key, incremental=True))
 
     def apply_value(self, target, text):
         def apply():
@@ -253,7 +272,7 @@ class ConfigurationsPanel(QWidget):
                 value = text.strip().casefold() == "active"
             else:
                 value = Expression(target.partition(":")[2] or "value", text.strip()) if text.strip().startswith("=") else float(text)
-            operations.set_override(self.document, self.selected_id(), target, value)
+            return operations.set_override(self.document, self.selected_id(), target, value, incremental=True)
         self.run(apply)
 
     def edit_override(self, item):
@@ -263,10 +282,10 @@ class ConfigurationsPanel(QWidget):
     def restore_selected(self):
         item = self.overrides.currentItem()
         if item is not None:
-            self.run(lambda: operations.set_override(self.document, self.selected_id(), item.data(Qt.ItemDataRole.UserRole), None))
+            self.run(lambda: operations.set_override(self.document, self.selected_id(), item.data(Qt.ItemDataRole.UserRole), None, incremental=True))
 
     def validate(self):
-        reports = self.run(lambda: operations.validate_all(self.document))
-        if reports is not None:
+        def completed(reports):
             failures = [self.document.configuration_state.configuration(key).name+" : "+text for key, text in reports.items() if text]
             self.message.setText("\n".join(failures) if failures else "Toutes les configurations sont valides.")
+        return self.run(lambda: operations.validate_all(self.document, incremental=True), completed=completed)

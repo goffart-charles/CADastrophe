@@ -5,13 +5,18 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QLabel, QCheckB
 
 from cadastrophe.document import SceneObject
 from cadastrophe.plugin_api import LengthSpinBox
-from cadastrophe.core.body_history import preview_feature, rollback_hidden_ids
-from cadastrophe.core.feature_model import Operation
+from cadastrophe.core.body_history import preview_feature_steps, rollback_hidden_ids
+from cadastrophe.core.feature_model import Operation, BodyStateRef, ResultStatus
+from cadastrophe.core.computation import complete, cooperative_required
 from .recipe_session import inherited_faces
 
 
 class FeatureEditSession:
     preview_opaque = True
+
+    @property
+    def cooperative_preview(self):
+        return cooperative_required(self.document.objects)
 
     def invalidate_preview(self):
         self._key = None
@@ -28,6 +33,7 @@ class FeatureEditSession:
         self._key = self._candidate = self._results = self._prefixes = None
         self.committed = False
         self.commit_error = ""
+        self._preview_cache = {}
 
     def create_editor(self, parent, changed):
         self.editor = QWidget(parent)
@@ -72,6 +78,9 @@ class FeatureEditSession:
         return self.editor
 
     def preview(self):
+        return complete(self.preview_steps())
+
+    def preview_steps(self):
         self.preview_hidden_ids, self.preview_parts = (), None
         if self.services.active_document is not self.document or self.document not in self.services.documents:
             raise ValueError("Le document source n’est plus actif.")
@@ -86,11 +95,15 @@ class FeatureEditSession:
                          reversed=self.reverse.isChecked(), end_condition=condition)
         if params != self._key:
             candidate = replace(self.feature, parameters=params)
-            results, prefixes = preview_feature(self.document, candidate, self.extrusions.evaluator, at_feature=True)
-            self._candidate, self._results, self._prefixes = candidate, results, prefixes
+            results, prefixes = yield from preview_feature_steps(self.document, candidate,
+                self.extrusions.evaluator, strict=False, cache=self._preview_cache)
+            current = prefixes[candidate.body_id][BodyStateRef(candidate.body_id, candidate.id)]
+            if current.status is not ResultStatus.READY:
+                raise ValueError(current.message)
+            self._candidate = candidate
+            self._results, self._prefixes = {candidate.body_id: current}, prefixes
             self.commit_error = ""
-            self._final_results, self._final_prefixes = preview_feature(
-                self.document, candidate, self.extrusions.evaluator, strict=False)
+            self._final_results, self._final_prefixes = results, prefixes
             self.rebuild_warning = next((r.message for r in self._final_results.values() if r.shape is None), "")
             self._key = params
         visible = [key for key in self._results if self.document.objects[key].visible]
@@ -119,5 +132,6 @@ class FeatureEditSession:
         self._key = self._candidate = self._results = self._prefixes = None
         self._final_results = self._final_prefixes = None
         self.snapshot = {}
+        self._preview_cache.clear()
         self.preview_parts = None
         self.editor = None

@@ -177,7 +177,7 @@ class ReplaySession(RecipePreview):
             self.sources.set_active(False)
             self.set_sources(selected)
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         if self.active_reference is not None or self._selecting_sources:
             return None
@@ -208,6 +208,6 @@ class ReplaySession(RecipePreview):
                     id=self.feature_id,kind=ObjectType.FEATURE,body_id=body.id,operation=self.operation,parameters=params)
                 body = adopted(body)
                 objects = (replace(body,features=(*body.features,feature.id)),feature)
-            self.calculate(objects,feature)
+            yield from self.calculate_steps(objects,feature)
             self._key = params
         return SceneObject("Aperçu du motif",self._current.shape,body.color)

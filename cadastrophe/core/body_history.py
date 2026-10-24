@@ -334,6 +334,12 @@ def evaluate_body_steps(document, body_id, adapter=None, *, reuse=False):
 
 
 def preview_feature(document, feature, adapter_factory, *, at_feature=False, strict=True):
+    from .computation import complete
+    return complete(preview_feature_steps(document, feature, adapter_factory,
+                                         at_feature=at_feature, strict=strict))
+
+
+def preview_feature_steps(document, feature, adapter_factory, *, at_feature=False, strict=True, cache=None):
     """Evaluate an edited recipe and its dependents without touching live state.
 
     The ordinary Document and evaluator are reused as a detached calculation
@@ -348,14 +354,25 @@ def preview_feature(document, feature, adapter_factory, *, at_feature=False, str
     candidate = {**snapshot, feature.id: feature}
     validate_graph(candidate)
     affected = affected_bodies(candidate, (feature.id,))
-    return preview_construction(document, candidate, affected, adapter_factory,
-                                stop_at=feature.id if at_feature else None, strict=strict)
+    return (yield from preview_construction_steps(document, candidate, affected, adapter_factory,
+        stop_at=feature.id if at_feature else None, strict=strict, cache=cache))
 
 
 def preview_construction(document, candidate, affected, adapter_factory, *, stop_at=None, strict=True, resolved_objects=None, materialized=False):
+    from .computation import complete
+    return complete(preview_construction_steps(document, candidate, affected, adapter_factory,
+        stop_at=stop_at, strict=strict, resolved_objects=resolved_objects, materialized=materialized))
+
+
+def preview_construction_steps(document, candidate, affected, adapter_factory, *, stop_at=None,
+                               strict=True, resolved_objects=None, materialized=False, cache=None):
     """Calculate candidate recipes using the ordinary graph on a detached Document."""
     from ..document import Document
     snapshot = dict(document.objects)
+    source_variables = document.variables
+    source_configuration = document.configuration_state
+    source_scope = document.parameter_scope
+    affected = set(affected)
     from .history_position import insertion_candidate
     candidate = insertion_candidate(document, candidate)
     variables = document.variables
@@ -372,6 +389,8 @@ def preview_construction(document, candidate, affected, adapter_factory, *, stop
         detached._body_prefixes = {key: dict(states) for key, states in document._body_prefixes.items()}
         detached._body_prefix_signatures = dict(document._body_prefix_signatures)
         detached._body_evaluation_cache = dict(document._body_evaluation_cache)
+        if cache is not None:
+            detached._body_evaluation_cache.update(cache)
         adapter = adapter_factory(detached)
         results, prefixes = {}, {}
         for key in candidate:
@@ -379,8 +398,8 @@ def preview_construction(document, candidate, affected, adapter_factory, *, stop
                 continue
             if stop_at is not None and stop_at not in candidate[key].features:
                 continue
-            result = _evaluate_body(detached, key, adapter, preserve_revision=True, reuse=True,
-                                    stop_at=stop_at)
+            result = yield from _evaluate_body_steps(detached, key, adapter, preserve_revision=True,
+                                                     reuse=True, stop_at=stop_at)
             if strict and result.status is not ResultStatus.READY and not _inactive_result(result, candidate):
                 raise ValueError(f"{candidate[key].name} : {result.message}")
             results[key] = result
@@ -412,8 +431,15 @@ def preview_construction(document, candidate, affected, adapter_factory, *, stop
                     continue
                 if plane != obj.plane or obj.shape is None or obj.reference_error_message:
                     resolved_objects[key] = replace(obj, plane=plane, shape=plane_shape(plane), reference_error_message="")
-        if set(document.objects) != set(snapshot) or any(document.objects[key] is not obj for key, obj in snapshot.items()):
+                yield 1, len(datums), obj.name
+        if (set(document.objects) != set(snapshot)
+                or any(document.objects[key] is not obj for key, obj in snapshot.items())
+                or document.variables != source_variables
+                or document.configuration_state != source_configuration
+                or document.parameter_scope != source_scope):
             raise ValueError("Le document a changé pendant l’aperçu ; résultat abandonné.")
+        if cache is not None:
+            cache.update(detached._body_evaluation_cache)
         return results, prefixes
     finally:
         detached.deleteLater()
@@ -533,9 +559,14 @@ def _evaluate_body_steps(document, body_id, adapter, *, preserve_revision=False,
                     prepare = getattr(adapter, "prepare_feature", None)
                     if callable(prepare):
                         prepare(feature, previous, MappingProxyType(supports))
-                    result = adapter.evaluate(feature, objects.get(feature.sketch_id),
-                                              None if previous is None else previous.shape,
-                                              MappingProxyType({dep: r.shape for dep, r in supports.items()}))
+                    arguments = (feature, objects.get(feature.sketch_id),
+                                 None if previous is None else previous.shape,
+                                 MappingProxyType({dep: r.shape for dep, r in supports.items()}))
+                    incremental = getattr(adapter, "evaluate_steps", None)
+                    if callable(incremental):
+                        result = yield from incremental(*arguments)
+                    else:
+                        result = adapter.evaluate(*arguments)
                     if not isinstance(result, EvaluationResult):
                         raise ValueError("Contrat de résultat du calcul invalide.")
                 except Exception as exc:

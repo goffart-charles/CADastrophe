@@ -54,6 +54,9 @@ class ToolUiHost(QObject):
             if field.isEnabled() and field.hasAcceptableInput():
                 field.interpretText()
 
+    def run_preview(self, steps, title, **callbacks):
+        return self.window.services.run_computation(steps, "Aperçu · " + title, **callbacks)
+
     def preview(self, obj):
         tool = self.window.tool_sessions.tool
         self.overlay.show(obj, hidden_ids=getattr(tool, "preview_hidden_ids", ()),

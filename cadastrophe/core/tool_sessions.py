@@ -53,10 +53,12 @@ class ToolSessionManager(QObject):
         self._working = False
         self._committing = False
         self._preview_revision = 0
+        self._preview_task = None
+        self._commit_requested = False
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(75)
-        self._timer.timeout.connect(self.update_preview)
+        self._timer.timeout.connect(lambda: self.update_preview(interactive=True))
         documents.about_to_change.connect(self.end_edit)
 
     @property
@@ -111,7 +113,7 @@ class ToolSessionManager(QObject):
         finally:
             self._working = False
             self.changed.emit()
-        self.update_preview()
+        self.update_preview(interactive=True)
         return self.active
 
     def configuration_scope_changed(self, *_):
@@ -128,6 +130,8 @@ class ToolSessionManager(QObject):
             # Input signals may arrive during a native calculation/presentation.
             # Remember them even while reentrant actions are otherwise blocked.
             self._preview_revision += 1
+            self._commit_requested = False
+            self._cancel_preview()
             self.can_commit = False
             self.preview_object = None
             self.message = "Mise à jour de l’aperçu…"
@@ -135,11 +139,86 @@ class ToolSessionManager(QObject):
                 self.changed.emit()
                 self._timer.start()
 
-    def update_preview(self):
+    def _cancel_preview(self):
+        task, self._preview_task = self._preview_task, None
+        if task is not None:
+            task.cancel()
+
+    def _show_preview(self, obj, revision):
+        if obj is not None and (not isinstance(obj, SceneObject) or obj.shape is None or obj.shape.IsNull()):
+            raise ValueError("L’aperçu doit être un objet B-Rep autonome.")
+        if self.documents.active_document is not self.document:
+            raise ValueError("Le document source n’est plus actif.")
+        if revision != self._preview_revision:
+            self.host.clear_preview()
+            return
+        self.host.preview(obj)
+        if self.documents.active_document is not self.document:
+            raise ValueError("Le document source n’est plus actif.")
+        if revision != self._preview_revision:
+            self.host.clear_preview()
+            return
+        self.preview_object = obj
+        commit_error = getattr(self.tool, "commit_error", "")
+        self.can_commit = obj is not None and not commit_error
+        self.message = commit_error or getattr(self.tool, "rebuild_warning", "") or ("Entrée : valider · Échap : annuler" if obj is not None else "Renseignez les paramètres de l’outil.")
+
+    def _start_preview(self, revision):
+        tool = self.tool
+        def current():
+            return self.tool is tool and revision == self._preview_revision
+        def completed(obj):
+            if not current():
+                return
+            self._preview_task = None
+            self._working = True
+            try:
+                self._show_preview(obj, revision)
+            except (Exception, SystemExit) as exc:
+                self._preview_error(exc)
+            finally:
+                self._working = False
+                if self.tool is tool and revision != self._preview_revision:
+                    self.can_commit = False
+                    self.preview_object = None
+                    self.message = "Mise à jour de l’aperçu…"
+                    self._timer.start()
+                self.changed.emit()
+            if self._commit_requested and self.can_commit:
+                self._commit_requested = False
+                QTimer.singleShot(0, lambda: self.commit() if current() else None)
+        def failed(error):
+            if current():
+                self._preview_task = None
+                self._commit_requested = False
+                self._preview_error(error)
+                self.changed.emit()
+        def cancelled():
+            if current():
+                self._preview_task = None
+                self._commit_requested = False
+                self.message = "Calcul de l’aperçu annulé. Modifiez les paramètres pour réessayer."
+                self.changed.emit()
+        self.message = "Calcul de l’aperçu…"
+        self._preview_task = self.host.run_preview(tool.preview_steps(), tool.title,
+            completed=completed, failed=failed, cancelled=cancelled)
+
+    def _preview_error(self, error):
+        self.can_commit = False
+        self.preview_object = None
+        self.message = f"Aperçu impossible : {error}"
+        try:
+            self.host.clear_preview()
+        except (Exception, SystemExit) as cleanup_error:
+            self._finish()
+            self.error.emit(f"Aperçu interrompu : {cleanup_error}")
+
+    def update_preview(self, *, interactive=False):
         if self.editing or not self.active or self._working:
             return
         self._timer.stop()
         self._working = True
+        self._cancel_preview()
         self.can_commit = False
         self.preview_object = None
         revision = self._preview_revision
@@ -148,31 +227,16 @@ class ToolSessionManager(QObject):
             if callable(prepare):
                 prepare()
             revision = self._preview_revision
+            if (interactive and getattr(self.tool, "cooperative_preview", False)
+                    and callable(getattr(self.tool, "preview_steps", None))
+                    and callable(getattr(self.host, "run_preview", None))):
+                self.host.clear_preview()
+                self._start_preview(revision)
+                return
             obj = self.tool.preview()
-            if obj is not None and (not isinstance(obj, SceneObject) or obj.shape is None or obj.shape.IsNull()):
-                raise ValueError("L’aperçu doit être un objet B-Rep autonome.")
-            if self.documents.active_document is not self.document:
-                raise ValueError("Le document source n’est plus actif.")
-            if revision != self._preview_revision:
-                self.host.clear_preview()
-                return
-            self.host.preview(obj)
-            if self.documents.active_document is not self.document:
-                raise ValueError("Le document source n’est plus actif.")
-            if revision != self._preview_revision:
-                self.host.clear_preview()
-                return
-            self.preview_object = obj
-            commit_error = getattr(self.tool, "commit_error", "")
-            self.can_commit = obj is not None and not commit_error
-            self.message = commit_error or getattr(self.tool, "rebuild_warning", "") or ("Entrée : valider · Échap : annuler" if obj is not None else "Renseignez les paramètres de l’outil.")
+            self._show_preview(obj, revision)
         except (Exception, SystemExit) as exc:
-            self.message = f"Aperçu impossible : {exc}"
-            try:
-                self.host.clear_preview()
-            except (Exception, SystemExit) as cleanup_error:
-                self._finish()
-                self.error.emit(f"Aperçu interrompu : {cleanup_error}")
+            self._preview_error(exc)
         finally:
             self._working = False
             if self.tool is not None and revision != self._preview_revision:
@@ -181,6 +245,24 @@ class ToolSessionManager(QObject):
                 self.message = "Mise à jour de l’aperçu…"
                 self._timer.start()
             self.changed.emit()
+
+    def commit_interactive(self):
+        """Queue validation of the current candidate without draining native work."""
+        if self.editing:
+            return self.end_edit()
+        if not self.active or self._working or self._committing:
+            return False
+        prepare = getattr(self.host, "prepare_preview", None)
+        if callable(prepare):
+            prepare()
+        if not getattr(self.tool, "cooperative_preview", False):
+            return self.commit()
+        if self.can_commit:
+            return self.commit()
+        if self._preview_task is None:
+            self.update_preview(interactive=True)
+        self._commit_requested = self._preview_task is not None
+        return self._commit_requested
 
     def commit(self):
         if self.editing:
@@ -341,6 +423,8 @@ class ToolSessionManager(QObject):
 
     def _finish(self):
         self._timer.stop()
+        self._commit_requested = False
+        self._cancel_preview()
         document, tool = self.document, self.tool
         document.parameter_scope_changed.disconnect(self.configuration_scope_changed)
         # Drop the session before notifying UI/lifecycle listeners on release.

@@ -183,24 +183,36 @@ def candidate(document, state):
 
 
 def publish(document, state, title, *, evaluator=None):
+    from .computation import complete
+    return complete(publish_steps(document, state, title, evaluator=evaluator))
+
+
+def publish_steps(document, state, title, *, evaluator=None):
     _check_idle(document)
+    from .computation import ReservedComputation
+    owner = object()
+    return ReservedComputation(document, _publish_steps(document, state, title, evaluator, owner), owner=owner)
+
+
+def _publish_steps(document, state, title, evaluator, owner):
     objects, variables, state = candidate(document, state)
     changed = {key for key, obj in objects.items() if obj != document.objects[key]}
     results, prefixes, resolved = {}, {}, {}
-    from .body_history import affected_bodies, preview_construction, result_receipts
+    from .body_history import affected_bodies, preview_construction_steps, result_receipts
     affected = affected_bodies(objects, changed)
     evaluator = evaluator or document.equation_evaluator
     if affected and evaluator is None:
         raise ValueError("Le service de recalcul doit être disponible pour activer cette configuration.")
     if changed:
-        results, prefixes = preview_construction(document, objects, affected, evaluator or (lambda _: None),
-                                                 resolved_objects=resolved, materialized=True)
+        results, prefixes = yield from preview_construction_steps(document, objects, affected,
+            evaluator or (lambda _: None), resolved_objects=resolved, materialized=True)
         objects.update(resolved)
         changed.update(resolved)
     from .document_commands import UpdateConstruction
     state = prune(state, objects, variables)
-    document.history.execute(UpdateConstruction(document, objects.values(), changed, title,
-        result_receipts(objects, results, prefixes), variables=variables, configuration_state=state))
+    with document.history.commit_reserved(owner, title):
+        document.history.execute(UpdateConstruction(document, objects.values(), changed, title,
+            result_receipts(objects, results, prefixes), variables=variables, configuration_state=state))
 
 
 def create(document, name, *, source_id=None):
@@ -219,25 +231,26 @@ def rename(document, key, name):
         for c in state.configurations)), "Renommer la configuration")
 
 
-def remove(document, key, *, evaluator=None):
+def remove(document, key, *, evaluator=None, incremental=False):
     state = document.configuration_state
     state.configuration(key)
     if key == state.default_id:
         raise ValueError("La configuration par défaut doit être conservée.")
     state = replace(state, configurations=tuple(c for c in state.configurations if c.id != key),
                     active_id=state.default_id if state.active_id == key else state.active_id)
-    publish(document, state, "Supprimer la configuration", evaluator=evaluator)
+    return (publish_steps if incremental else publish)(document, state, "Supprimer la configuration", evaluator=evaluator)
 
 
-def activate(document, key, *, evaluator=None):
+def activate(document, key, *, evaluator=None, incremental=False):
     _check_idle(document)
     state = document.configuration_state
     state.configuration(key)
     if key != state.active_id:
-        publish(document, replace(state, active_id=key), "Activer la configuration", evaluator=evaluator)
+        return (publish_steps if incremental else publish)(document, replace(state, active_id=key),
+            "Activer la configuration", evaluator=evaluator)
 
 
-def set_override(document, key, target, value, *, evaluator=None):
+def set_override(document, key, target, value, *, evaluator=None, incremental=False):
     _check_idle(document)
     state = document.configuration_state
     config = state.configuration(key)
@@ -252,25 +265,33 @@ def set_override(document, key, target, value, *, evaluator=None):
         overrides[target] = ParameterSetting(target, value)
     state = replace(state, common_values=_ordered(common), configurations=tuple(
         replace(c, overrides=_ordered(overrides)) if c.id == key else c for c in state.configurations))
-    publish(document, state, "Modifier les substitutions", evaluator=evaluator)
+    return (publish_steps if incremental else publish)(document, state, "Modifier les substitutions", evaluator=evaluator)
 
 
-def validate_all(document, *, evaluator=None):
+def validate_all(document, *, evaluator=None, incremental=False):
     """Return per-configuration diagnostics without changing active state/history."""
     _check_idle(document)
-    from .body_history import preview_construction
+    from .computation import ReservedComputation, complete
+    steps = ReservedComputation(document, _validate_all_steps(document, evaluator))
+    return steps if incremental else complete(steps)
+
+
+def _validate_all_steps(document, evaluator):
+    from .body_history import preview_construction_steps
     from .feature_objects import BodyObject
     evaluator = evaluator or document.equation_evaluator
     reports = {}
-    for config in document.configurations:
+    cache = {}
+    for index, config in enumerate(document.configurations, 1):
         try:
             objects, _, _ = candidate(document, replace(document.configuration_state, active_id=config.id))
             bodies = {key for key, obj in objects.items() if isinstance(obj, BodyObject)}
             if bodies and evaluator is None:
                 raise ValueError("Le service de recalcul est indisponible.")
-            preview_construction(document, objects, bodies, evaluator or (lambda _: None),
-                                 resolved_objects={}, materialized=True)
+            yield from preview_construction_steps(document, objects, bodies, evaluator or (lambda _: None),
+                resolved_objects={}, materialized=True, cache=cache)
             reports[config.id] = ""
         except (ValueError, RuntimeError) as exc:
             reports[config.id] = str(exc)
+        yield index, len(document.configurations), config.name
     return reports

@@ -28,6 +28,11 @@ def checked_sweep(shape):
 
 
 def sweep_face(face, path, parameters, *, tolerance=1e-7, trace=None):
+    from .computation import complete
+    return complete(sweep_face_steps(face, path, parameters, tolerance=tolerance, trace=trace))
+
+
+def sweep_face_steps(face, path, parameters, *, tolerance=1e-7, trace=None):
     from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
     from OCC.Core.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_RightCorner, BRepBuilderAPI_RoundCorner)
     from OCC.Core.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell
@@ -102,15 +107,18 @@ def sweep_face(face, path, parameters, *, tolerance=1e-7, trace=None):
                 maker.SetMode(parameters.transport == "frenet")
             maker.SetTransitionMode(BRepBuilderAPI_RightCorner if parameters.transition == "right" else BRepBuilderAPI_RoundCorner)
             maker.Add(wire, first_vertex, False, parameters.orientation == "normal")
+            yield 0, 4, "Construction du balayage"
             maker.Build()
             if not maker.IsDone() or not maker.MakeSolid():
                 raise ValueError("Impossible de fermer le volume balayé avec ce transport et ce raccord.")
+            yield 1, 4, "Vérification du volume balayé"
             solid = checked_sweep(maker.Shape())
             if trace is not None:
                 trace.sweep(maker, wire, solid, source_keys)
             if result is None:
                 result = solid
             else:
+                yield 2, 4, "Conservation des ouvertures du profil"
                 cut = build_boolean(BRepAlgoAPI_Cut, result, solid)
                 if not cut.IsDone():
                     raise ValueError("Les ouvertures du profil ne peuvent pas être conservées.")
@@ -121,6 +129,7 @@ def sweep_face(face, path, parameters, *, tolerance=1e-7, trace=None):
                 if trace is not None:
                     trace.operation(cut, (result, solid), shape)
                 result = shape
+            yield 3, 4, "Volume balayé vérifié"
     except (ValueError, RuntimeError) as exc:
         raise ValueError(f"Balayage impossible : vérifiez le profil, le parcours et les raccords. {exc}") from exc
     return result

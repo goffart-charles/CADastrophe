@@ -10,6 +10,62 @@ from cadastrophe.core.tool_sessions import ToolSessionManager
 from cadastrophe.document import Document, SceneObject
 
 
+@pytest.mark.parametrize('failure', ['exit', 'cleanup'])
+def test_cooperative_preview_failures_release_iterators_and_document_reservation(system, monkeypatch, failure):
+    from cadastrophe.ui.computation import Computation
+    from test_interactive_computation import wait_for
+    documents, doc, host, sessions, tool, original = system
+    closed, errors = [], []
+    def steps():
+        try:
+            yield 1, 2, 'Calcul natif'
+            raise SystemExit('Extension interrompue')
+        finally:
+            closed.append(True)
+    tool.cooperative_preview = True
+    tool.preview_steps = steps
+    host.run_preview = lambda steps, title, **callbacks: Computation(None, steps, title, **callbacks)
+    sessions.error.connect(errors.append)
+    assert sessions.start('fixture.cooperative', tool)
+    task = sessions._preview_task
+    if failure == 'cleanup':
+        def broken():
+            raise RuntimeError('Nettoyage interrompu')
+        monkeypatch.setattr(host, 'clear_preview', broken)
+    wait_for(lambda: task.outcome != 'running')
+    assert task.outcome == 'failed' and closed == [True]
+    assert not sessions.can_commit and doc.history.count == 0
+    if failure == 'cleanup':
+        assert errors and not sessions.active and not doc.history.blocked
+    else:
+        assert 'Extension interrompue' in sessions.message
+        assert sessions.cancel() and not doc.history.blocked
+
+
+def test_cooperative_input_signal_during_native_step_defers_iterator_close(system):
+    from cadastrophe.ui.computation import Computation
+    from test_interactive_computation import wait_for
+    documents, doc, host, sessions, tool, original = system
+    started, closed = [], []
+    def steps():
+        started.append(True)
+        try:
+            if len(started) == 1:
+                tool.changed()
+            yield 1, 2, 'Calcul natif'
+            return tool.obj
+        finally:
+            closed.append(True)
+    tool.cooperative_preview = True
+    tool.preview_steps = steps
+    host.run_preview = lambda steps, title, **callbacks: Computation(None, steps, title, **callbacks)
+    assert sessions.start('fixture.cooperative', tool)
+    task = sessions._preview_task
+    wait_for(lambda: sessions.can_commit)
+    assert task.outcome == 'cancelled' and len(started) == len(closed) == 2
+    assert sessions.preview_object is tool.obj and doc.history.count == 0
+
+
 class Host:
     ready = True
 

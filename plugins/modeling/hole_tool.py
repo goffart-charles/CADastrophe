@@ -121,7 +121,7 @@ class HoleSession(RecipePreview):
         self.positions.setEnabled(not self.all_points.isChecked())
         self.changed()
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         sketch = self.document.objects.get(self.source.currentData())
         target = self.document.objects.get(self.body.currentData())
@@ -155,7 +155,7 @@ class HoleSession(RecipePreview):
                 feature = HoleFeature(unique_name(self.document, "Perçage"), None, body.color, kind=ObjectType.FEATURE,
                     id=self.feature_id, body_id=body.id, operation=Operation.CUT, source=source, parameters=parameters)
                 objects = (replace(body, features=(*body.features, feature.id)), feature)
-            self.calculate(objects, feature)
+            yield from self.calculate_steps(objects, feature)
             self._key = key
         return SceneObject("Aperçu du perçage", self._current.shape, target.color)
 

@@ -21,7 +21,8 @@ class Rebuilder:
         self._timer = QTimer(services)
         self._timer.setSingleShot(True)
         self._timer.setInterval(75)
-        self._timer.timeout.connect(self.flush)
+        self._timeout = lambda: self.flush(interactive=True)
+        self._timer.timeout.connect(self._timeout)
 
     def sync(self):
         if self._closed:
@@ -49,7 +50,7 @@ class Rebuilder:
         if not self._closed and not self._working:
             self._timer.start()
 
-    def flush(self):
+    def flush(self, *, interactive=False):
         self._timer.stop()
         if self._closed or self._working or self.services.computation_busy:
             return
@@ -70,7 +71,10 @@ class Rebuilder:
                         if self._cancelled.get((document.id, body.id)) == snapshot:
                             continue
                         self._cancelled.pop((document.id, body.id), None)
-                        if len(body.features) >= self.threshold and self.services.computation_available:
+                        from cadastrophe.core.computation import cooperative_required
+                        cooperative = (len(body.features) >= self.threshold or interactive
+                                       and cooperative_required({key: document.objects[key] for key in body.features}))
+                        if cooperative and self.services.computation_available:
                             self._start(document, body, adapter)
                             return
                         try:
@@ -115,7 +119,7 @@ class Rebuilder:
         if self._task is not None:
             self._task.cancel()
         self._timer.stop()
-        self._timer.timeout.disconnect(self.flush)
+        self._timer.timeout.disconnect(self._timeout)
         self._timer.deleteLater()
         for connections in self._connections.values():
             for signal, callback in connections:

@@ -8,11 +8,16 @@ from cadastrophe.document import SceneObject, ObjectType
 from cadastrophe.plugin_api import LengthSpinBox
 from cadastrophe.core.feature_objects import BodyObject, EdgeFeature
 from cadastrophe.core.feature_model import Operation, EdgeParameters, BodyStateRef, EvaluationResult, ResultStatus
-from cadastrophe.core.body_history import prefix_results, result_at, preview_feature, affected_bodies, rollback_hidden_ids
+from cadastrophe.core.body_history import prefix_results, result_at, preview_feature_steps, affected_bodies, rollback_hidden_ids
+from cadastrophe.core.computation import complete, cooperative_required
 from .edge_geometry import apply_edges, edge_reference, edges_of, resolve_edges
 
 
 class EdgeSession:
+    @property
+    def cooperative_preview(self):
+        return cooperative_required(self.document.objects)
+
     def invalidate_preview(self):
         self._key = None
 
@@ -34,6 +39,7 @@ class EdgeSession:
         self.committed = False
         self.commit_error = ""
         self.feature_id = feature.id if feature else str(uuid4())
+        self._preview_cache = {}
         if feature is not None and self.topology_references:
             try:
                 from cadastrophe.core.native_naming import resolve
@@ -206,8 +212,11 @@ class EdgeSession:
                               self.topology_references)
 
     def preview(self):
+        return complete(self.preview_steps())
+
+    def preview_steps(self):
         try:
-            return self._preview()
+            return (yield from self._preview_steps())
         except (ValueError, RuntimeError) as exc:
             if self.body_id is None:
                 raise
@@ -221,7 +230,7 @@ class EdgeSession:
             self.preview_parts = ((base, body.color, subshapes(base, "Face"), body.transparency),)
             return SceneObject("État source — référence à corriger", base, body.color)
 
-    def _preview(self):
+    def _preview_steps(self):
         self.preview_hidden_ids, self.preview_parts = (), None
         if self._pick_error:
             raise ValueError(self._pick_error)
@@ -233,8 +242,9 @@ class EdgeSession:
                                                        topology=self.base_state().topology)
             self.commit_error = ""
             if self.feature:
-                self._final_results, self._final_prefixes = preview_feature(
-                    self.document, replace(self.feature, parameters=params), self.extrusions.evaluator, strict=False)
+                self._final_results, self._final_prefixes = yield from preview_feature_steps(
+                    self.document, replace(self.feature, parameters=params), self.extrusions.evaluator,
+                    strict=False, cache=self._preview_cache)
                 if len(self.document.configurations) > 1 or self.document.configuration_state.common_values:
                     state = self._final_prefixes[self.body_id][BodyStateRef(self.body_id, self.feature_id)]
                     if state.status is not ResultStatus.READY:
@@ -242,8 +252,8 @@ class EdgeSession:
                     from .recipe_session import inherited_faces
                     self._shape, self._base_faces = state.shape, inherited_faces(state, self.feature_id)
                 self.rebuild_warning = next((r.message for r in self._final_results.values() if r.shape is None), "")
-            elif self.document.history_context.position is not None:
-                from cadastrophe.core.body_history import preview_construction
+            elif self.document.history_context.position is not None or self.cooperative_preview:
+                from cadastrophe.core.body_history import preview_construction_steps
                 body = self.document.objects[self.body_id]
                 from .recipe_session import adopted, unique_name
                 feature = EdgeFeature(unique_name(self.document, "Congé" if self.operation is Operation.FILLET else "Chanfrein"),
@@ -251,8 +261,8 @@ class EdgeSession:
                     operation=self.operation, parameters=params)
                 body = replace(adopted(body), features=(*getattr(body, "features", ()), feature.id))
                 graph = {**self.document.objects, body.id: body, feature.id: feature}
-                self._final_results, self._final_prefixes = preview_construction(self.document, graph,
-                    affected_bodies(graph, (feature.id,)), self.extrusions.evaluator, strict=False)
+                self._final_results, self._final_prefixes = yield from preview_construction_steps(self.document, graph,
+                    affected_bodies(graph, (feature.id,)), self.extrusions.evaluator, strict=False, cache=self._preview_cache)
                 state = self._final_prefixes[body.id][BodyStateRef(body.id, feature.id)]
                 if state.status is not ResultStatus.READY:
                     raise ValueError(state.message)
@@ -288,10 +298,13 @@ class EdgeSession:
             body = replace(body, features=(*body.features, feature.id))
             objects, results, prefixes = (body, feature), {body.id: EvaluationResult(ResultStatus.READY, preview.shape)}, {body.id: states}
         if not self.feature:
-            from cadastrophe.core.body_history import preview_construction, affected_bodies
-            candidate = {**document.objects, **{o.id: o for o in objects}}
-            results, prefixes = preview_construction(document, candidate, affected_bodies(candidate, (self.feature_id,)),
-                                                     self.extrusions.evaluator, strict=False)
+            if self.document.history_context.position is not None or self.cooperative_preview:
+                results, prefixes = self._final_results, self._final_prefixes
+            else:
+                from cadastrophe.core.body_history import preview_construction, affected_bodies
+                candidate = {**document.objects, **{o.id: o for o in objects}}
+                results, prefixes = preview_construction(document, candidate, affected_bodies(candidate, (self.feature_id,)),
+                                                         self.extrusions.evaluator, strict=False)
         from cadastrophe.plugin_api import equation_recipe
         objects = tuple(equation_recipe(self, o) if hasattr(o, "parameters") else o for o in objects)
         document.update_construction(objects, title=self.title, results=results, prefixes=prefixes)
@@ -310,4 +323,5 @@ class EdgeSession:
         self.preview_parts = None
         self._final_results = self._final_prefixes = None
         self.snapshot = {}
+        self._preview_cache.clear()
         self.surface = self.editor = None

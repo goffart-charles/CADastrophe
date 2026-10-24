@@ -6,13 +6,18 @@ from cadastrophe.document import Document, SceneObject, ObjectType
 from cadastrophe.core.feature_model import BodyStateRef, ResultStatus
 from cadastrophe.core.feature_objects import BodyObject, ConstructionFeature, SketchSourceObject, EdgeFeature, HoleFeature
 from cadastrophe.core.operation_model import GeometryReference
-from cadastrophe.core.body_history import result_at, body_result, last_valid_result, validate_graph, preview_construction, affected_bodies
+from cadastrophe.core.body_history import result_at, body_result, last_valid_result, validate_graph, affected_bodies
 from cadastrophe.core.reference_repair import reference_entries, entry_issue, replacement_objects, related_objects, error_sources
 from cadastrophe.core.native_naming import capture, subshapes
+from cadastrophe.core.computation import complete, cooperative_required
 
 
 class ReferenceRepairSession:
     preview_opaque = True
+
+    @property
+    def cooperative_preview(self):
+        return cooperative_required(self.document.objects)
 
     def __init__(self, services, extrusions, profiles, selected):
         self.services, self.extrusions, self.profiles = services, extrusions, profiles
@@ -35,6 +40,7 @@ class ReferenceRepairSession:
         self.view._body_prefixes = {key: dict(values) for key, values in self.document._body_prefixes.items()}
         self.view._body_results = dict(self.document._body_results)
         self._entries = reference_entries(self.view, self.object_id)
+        self._preview_cache = {}
 
     def create_editor(self, parent, changed):
         self.changed = changed
@@ -300,6 +306,9 @@ class ReferenceRepairSession:
         self.surface = surface
 
     def preview(self):
+        return complete(self.preview_steps())
+
+    def preview_steps(self):
         if self.services.active_document is not self.document or any(self.document.objects.get(k) is not v for k, v in self.snapshot.items()) or set(self.document.objects) != set(self.snapshot):
             raise ValueError("Le document source a changé depuis l'ouverture de la réparation.")
         self.preview_parts, self.preview_hidden_ids = None, ()
@@ -314,8 +323,9 @@ class ReferenceRepairSession:
             validate_graph(candidate)
             affected = affected_bodies(candidate, self.staged)
             resolved = {}
-            self._results, self._prefixes = preview_construction(self.document, candidate, affected,
-                self.extrusions.evaluator, strict=False, resolved_objects=resolved)
+            from cadastrophe.core.body_history import preview_construction_steps
+            self._results, self._prefixes = yield from preview_construction_steps(self.document, candidate, affected,
+                self.extrusions.evaluator, strict=False, resolved_objects=resolved, cache=self._preview_cache)
             candidate.update(resolved)
             self.view._objects.update(candidate)
             self.view._body_prefixes.update(self._prefixes)
@@ -380,5 +390,6 @@ class ReferenceRepairSession:
         self.view = None
         self.staged.clear()
         self.snapshot.clear()
+        self._preview_cache.clear()
         self._results = self._prefixes = self.preview_parts = None
         self.surface = self.editor = self.changed = None

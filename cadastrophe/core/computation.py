@@ -2,10 +2,11 @@
 
 
 class ReservedComputation:
-    def __init__(self, document, steps):
+    def __init__(self, document, steps, *, owner=None):
         self.document, self.steps = document, iter(steps)
         self.closed = False
-        document.history.reserve(self)
+        self.owner = owner
+        document.history.reserve(self if owner is None else owner)
 
     def __iter__(self):
         return self
@@ -27,7 +28,7 @@ class ReservedComputation:
                 if close is not None:
                     close()
             finally:
-                self.document.history.release(self)
+                self.document.history.release(self if self.owner is None else self.owner)
 
 
 def complete(steps):
@@ -41,3 +42,12 @@ def complete(steps):
         close = getattr(steps, "close", None)
         if close is not None:
             close()
+
+
+def cooperative_required(objects, *, threshold=32):
+    """Use steps for long histories and costly native surface constructions."""
+    from .feature_objects import ConstructionFeature, SweepFeature, LoftFeature, ReplayFeature
+    return (sum(isinstance(obj, ConstructionFeature) for obj in objects.values()) >= threshold
+            or any(isinstance(obj, (SweepFeature, LoftFeature))
+                   or isinstance(obj, ReplayFeature) and obj.parameters.count >= threshold
+                   for obj in objects.values()))

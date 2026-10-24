@@ -7,7 +7,7 @@ from cadastrophe.document import ObjectType, SceneObject
 from cadastrophe.core.feature_model import Operation, SketchInput, BodyStateRef
 from cadastrophe.core.feature_objects import BodyObject, ConstructionFeature, RevolutionFeature
 from cadastrophe.core.operation_model import RevolutionParameters
-from cadastrophe.core.body_history import preview_construction
+from cadastrophe.core.body_history import preview_construction_steps
 from cadastrophe.core.boss import fuse_boss
 from .extrusion_tool import ExtrusionSession
 from .reference_picker import ReferencePicker
@@ -93,7 +93,7 @@ class RevolutionSession(RecipePreview, ExtrusionSession):
             None, color, kind=ObjectType.FEATURE, id=self.feature_id, operation=Operation.NEW_BODY,
             body_id=self.body_id, source=source, parameters=parameters)
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         if self.active_reference is not None:
             return None
@@ -107,7 +107,7 @@ class RevolutionSession(RecipePreview, ExtrusionSession):
             if self.feature:
                 candidate = replace(self.feature, parameters=params,
                                     source=sketch_input(self.document, self.document.objects[self.source.value]))
-                self.calculate((candidate,), candidate)
+                yield from self.calculate_steps((candidate,), candidate)
             else:
                 sketch = self.document.objects[self.source.value]
                 source = sketch_input(self.document, sketch)
@@ -128,7 +128,8 @@ class RevolutionSession(RecipePreview, ExtrusionSession):
                 elif self.merge.isChecked() and candidates:
                     temporary = BodyObject("Aperçu", None, color, id=self.body_id, features=(feature.id,))
                     graph = {**self.document.objects, temporary.id:temporary, feature.id:feature}
-                    result, _ = preview_construction(self.document, graph, (temporary.id,), self.extrusions.evaluator)
+                    result, _ = yield from preview_construction_steps(self.document, graph,
+                        (temporary.id,), self.extrusions.evaluator, cache=self._preview_cache)
                     volume = result[temporary.id].shape
                     touching = []
                     for body in candidates:
@@ -151,7 +152,7 @@ class RevolutionSession(RecipePreview, ExtrusionSession):
                     body = adopted(target)
                     feature = replace(feature, body_id=body.id, operation=Operation.CUT if self.is_cut else Operation.BOSS)
                     body = replace(body, features=(*body.features, feature.id))
-                self.calculate((body,feature), feature)
+                yield from self.calculate_steps((body,feature), feature)
             self._key = key
         self._result = self._current
         self._feedback()

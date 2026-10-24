@@ -9,7 +9,7 @@ from cadastrophe.document import SceneObject, ObjectType
 from cadastrophe.core.feature_objects import BodyObject, LoftFeature, SketchSourceObject
 from cadastrophe.core.feature_model import Operation
 from cadastrophe.core.operation_model import LoftSection, LoftParameters
-from cadastrophe.core.body_history import preview_construction
+from cadastrophe.core.body_history import preview_construction_steps
 from cadastrophe.core.boss import fuse_boss
 from .recipe_session import RecipePreview, adopted, unique_name
 from .revolution_tool import sketch_input
@@ -17,6 +17,7 @@ from .selection_field import SelectionField
 
 
 class LoftSession(RecipePreview):
+    cooperative_preview = True
     def __init__(self, services, extrusions, profiles, *, cut=False, feature=None):
         self.initialize(services, extrusions, feature)
         self.profiles = profiles
@@ -338,7 +339,7 @@ class LoftSession(RecipePreview):
             self.changed()
         return True
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         if any(not s.contours for s in self.sections):
             raise ValueError("Choisissez une région pour chaque section.")
@@ -347,17 +348,21 @@ class LoftSession(RecipePreview):
         if key != self._key:
             if self.feature:
                 candidate = replace(self.feature, parameters=parameters)
-                self.calculate((candidate,), candidate)
+                yield from self.calculate_steps((candidate,), candidate)
             else:
                 feature = LoftFeature(unique_name(self.document, "Enlèvement par lissage" if self.is_cut else "Lissage"),
                     None, (.72, .75, .8), kind=ObjectType.FEATURE, id=self.feature_id,
                     body_id=self.body_id, operation=Operation.NEW_BODY, parameters=parameters)
-                body, feature = self.plan_body(feature)
-                self.calculate((body, feature), feature)
+                body, feature = yield from self.plan_body_steps(feature)
+                yield from self.calculate_steps((body, feature), feature)
             self._key = key
         return SceneObject("Aperçu du lissage", self._current.shape, (.72, .75, .8))
 
     def plan_body(self, feature):
+        from cadastrophe.core.computation import complete
+        return complete(self.plan_body_steps(feature))
+
+    def plan_body_steps(self, feature):
         from cadastrophe.core.history_position import context_object
         candidates = [o for original in self.document.objects.values() if (o := context_object(self.document, original))
                       and o.kind is ObjectType.BODY and o.shape is not None]
@@ -373,7 +378,8 @@ class LoftSession(RecipePreview):
         elif self.merge.isChecked() and candidates:
             temporary = BodyObject("Aperçu", None, feature.color, id=self.body_id, features=(feature.id,))
             graph = {**self.document.objects, temporary.id: temporary, feature.id: feature}
-            results, _ = preview_construction(self.document, graph, (temporary.id,), self.extrusions.evaluator)
+            results, _ = yield from preview_construction_steps(self.document, graph, (temporary.id,),
+                self.extrusions.evaluator, cache=self._preview_cache)
             generated = results[temporary.id].shape
             from OCC.Core.TopAbs import TopAbs_COMPOUND
             from cadastrophe.core.operation_effects import checked_solids

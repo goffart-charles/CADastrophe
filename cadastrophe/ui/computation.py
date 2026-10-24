@@ -12,6 +12,7 @@ class Computation(QObject):
         self.steps = iter(steps)
         self.completed, self.failed, self.cancelled = completed, failed, cancelled
         self.outcome = "running"
+        self._advancing = self._cancel_requested = False
         self.dialog = QProgressDialog(title, "Annuler", 0, 0, parent)
         self.dialog.setWindowTitle(title)
         self.dialog.setWindowModality(Qt.WindowModality.NonModal)
@@ -28,7 +29,14 @@ class Computation(QObject):
         if self.outcome != "running":
             return
         try:
-            current, total, label = next(self.steps)
+            self._advancing = True
+            try:
+                current, total, label = next(self.steps)
+            finally:
+                self._advancing = False
+            if self._cancel_requested:
+                self.cancel()
+                return
             self.dialog.setRange(0, max(current+1, total))
             self.dialog.setValue(current)
             self.dialog.setLabelText(label)
@@ -36,13 +44,16 @@ class Computation(QObject):
         except StopIteration as result:
             self.finish("completed", self.completed, result.value)
             return
-        except Exception as error:
+        except (Exception, SystemExit) as error:
             self.finish("failed", self.failed, error)
             return
         if self.outcome == "running":
             self.timer.start(0)
 
     def cancel(self):
+        if self._advancing:
+            self._cancel_requested = True
+            return
         self.finish("cancelled", self.cancelled)
 
     def finish(self, outcome, callback, *args):
@@ -54,7 +65,7 @@ class Computation(QObject):
             close = getattr(self.steps, "close", None)
             if close is not None:
                 close()
-        except Exception as error:
+        except (Exception, SystemExit) as error:
             self.outcome = outcome = "failed"
             callback, args = self.failed, (error,)
         finally:
@@ -94,8 +105,9 @@ class Computations(QObject):
         return task
 
     def _finished(self, _):
-        self.active = None
-        self.changed.emit()
+        if self.active is self.sender():
+            self.active = None
+            self.changed.emit()
 
     def cancel(self):
         if self.active is not None:

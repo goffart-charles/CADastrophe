@@ -286,7 +286,7 @@ class MainWindow(QMainWindow):
         self.normal_action.setEnabled(False)
         back = register("view.cancel", "Retour 3D", "Affichage", self.cancel_view,
                         shortcuts=("Escape",), reason="Échap : annuler le geste et revenir à la vue 3D.")
-        register("tool.commit", "Valider l’outil", "Outils", self.tool_sessions.commit,
+        register("tool.commit", "Valider l’outil", "Outils", self.tool_sessions.commit_interactive,
                  shortcuts=("Return", "Enter"), enabled=False)
         objectmenu = self.menuBar().addMenu("Objet")
         frame = register("object.frame", "Cadrer la sélection", "Objet", self.frame_selected, shortcuts=("Shift+F",))
@@ -746,12 +746,17 @@ class MainWindow(QMainWindow):
         return result == QMessageBox.StandardButton.Discard
 
     def close_document(self, document_id=None):
-        if self.documents.blocked:
-            self.hint.setText("Terminez l’opération documentaire avant de fermer.")
-            return False
         document = (next((doc for doc in self.documents.documents if doc.id == document_id), None)
                     if document_id is not None else self.documents.active_document)
         if document is None:
+            return False
+        if self.tool_sessions.document is document and self.tool_sessions._preview_task is not None:
+            self.tool_sessions.cancel()
+        task = self.computations.active
+        if task is not None and getattr(task.steps, "document", None) is document:
+            task.cancel()
+        if self.documents.blocked:
+            self.hint.setText("Terminez l’opération documentaire avant de fermer.")
             return False
         if document.is_modified and not self.confirm_discard(document):
             return False
@@ -834,7 +839,10 @@ class MainWindow(QMainWindow):
         self.command_registry.set_enabled("file.open", not self.services.busy)
         self.command_registry.set_enabled("file.save", document is not None and not self.services.busy)
         self.command_registry.set_enabled("file.save_as", document is not None and not self.services.busy)
-        self.command_registry.set_enabled("file.close", document is not None and not self.services.busy)
+        calculation = self.computations.active
+        cancellable = (calculation is not None and getattr(calculation.steps, "document", None) is document
+                       or self.tool_sessions.document is document and self.tool_sessions._preview_task is not None)
+        self.command_registry.set_enabled("file.close", document is not None and (not self.services.busy or cancellable))
         self.command_registry.set_enabled("file.recover", self.recovery is not None and self.recovery.directory is not None
                                           and not self.documents.blocked)
         objects = [document.objects[key] for key in self.selected_ids if key in document.objects] if document is not None else []

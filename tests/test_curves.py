@@ -179,11 +179,11 @@ def test_helix_preview_calculates_once_and_measures_previous_double_pass(monkeyp
     body = replace(body, features=(feature.id,))
     candidate = {**document.objects, body.id: body, feature.id: feature}
     calls = []
-    native = sweep.sweep_face
+    native = sweep.sweep_face_steps
     def counted(*args, **kwargs):
         calls.append(True)
         return native(*args, **kwargs)
-    monkeypatch.setattr(sweep, "sweep_face", counted)
+    monkeypatch.setattr(sweep, "sweep_face_steps", counted)
     start = perf_counter()
     before, _ = preview_construction(document, candidate, (body.id,), service.evaluator, stop_at=feature.id)
     preview_construction(document, candidate, (body.id,), service.evaluator, strict=False)

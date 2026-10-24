@@ -9,7 +9,7 @@ from cadastrophe.geometry import REFERENCE_PLANES
 from cadastrophe.core.reference_objects import DatumPlaneObject
 from cadastrophe.core.operation_model import PlaneParameters
 from cadastrophe.core.reference_geometry import resolve_plane, plane_shape, capture_reference
-from cadastrophe.core.body_history import preview_construction, affected_bodies, validate_graph
+from cadastrophe.core.body_history import affected_bodies, validate_graph
 from .reference_picker import ReferencePicker
 from .recipe_session import RecipePreview, unique_name
 
@@ -100,7 +100,7 @@ class PlaneSession(RecipePreview):
             (self.base.reference(),self.hinge.reference()) if method == "inclined" else (self.base.reference(),))
         return PlaneParameters(method,refs,self.distance.internal_value,self.angle.value(),self.reverse.isChecked())
 
-    def preview(self):
+    def preview_steps(self):
         self.check_snapshot()
         if self.active_reference is not None:
             return None
@@ -116,8 +116,9 @@ class PlaneSession(RecipePreview):
             graph[obj.id] = obj
             affected = affected_bodies(graph,(obj.id,))
             resolved = {}
-            self._results,self._prefixes = preview_construction(self.document,graph,affected,self.extrusions.evaluator,
-                strict=False,resolved_objects=resolved)
+            from cadastrophe.core.body_history import preview_construction_steps
+            self._results,self._prefixes = yield from preview_construction_steps(self.document,graph,affected,
+                self.extrusions.evaluator, strict=False,resolved_objects=resolved, cache=self._preview_cache)
             self._objects = (obj,)
             obj = resolved.get(obj.id, obj)
             self._preview_plane = obj.plane
