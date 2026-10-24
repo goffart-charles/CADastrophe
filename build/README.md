@@ -6,6 +6,11 @@ disponible, notamment pour charger les plugins locaux et lancer les workers
 d'échange dans un véritable interpréteur. Aucun Conda ni Python préinstallé
 n'est requis sur la machine cible.
 
+Le build génère `CADastrophe.ico` depuis le logo SVG original de l’application,
+en sept résolutions de 16 à 256 pixels avec transparence. Cette icône est intégrée
+au lanceur et utilisée par l’installeur, les raccourcis du menu Démarrer et du
+bureau, ainsi que l’entrée de désinstallation.
+
 ## Prérequis et commande
 
 Construire sur Windows x64 avec Conda, .NET Framework 4.x (compilateur `csc.exe`)

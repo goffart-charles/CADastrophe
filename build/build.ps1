@@ -64,8 +64,10 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $releasePath 'runtime.zip'), (Join-Path $appPath 'runtime'))
     Invoke-BuildCommand $PackPythonPath @('-B', (Join-Path $PSScriptRoot 'stage_application.py'), $repoPath, $appPath)
+    $iconPath = Join-Path $appPath 'CADastrophe.ico'
+    Invoke-BuildCommand $runtimeExe @('-B', (Join-Path $PSScriptRoot 'create_icon.py'), (Join-Path $repoPath 'cadastrophe/ui/icons/cadastrophe.svg'), $iconPath)
     $launcherPath = Join-Path $appPath 'CADastrophe.exe'
-    Invoke-BuildCommand $compilerPath @('/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/reference:System.Windows.Forms.dll', "/out:$launcherPath", (Join-Path $PSScriptRoot 'Launcher.cs'))
+    Invoke-BuildCommand $compilerPath @('/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/reference:System.Windows.Forms.dll', "/win32icon:$iconPath", "/out:$launcherPath", (Join-Path $PSScriptRoot 'Launcher.cs'))
     Invoke-BuildCommand $runtimeExe @('-B', (Join-Path $PSScriptRoot 'release_metadata.py'), $RuntimePath, $appPath, $Version)
     if (-not $SkipInstaller) {
         Invoke-BuildCommand $IsccPath @("/DAppVersion=$Version", "/DSourceDir=$appPath", "/DOutputDir=$releasePath", (Join-Path $PSScriptRoot 'installer.iss'))

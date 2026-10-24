@@ -4,7 +4,7 @@
 
 # CADastrophe
 
-**Dessiner une esquisse, construire une pièce, faire évoluer ses paramètres.**
+**Concevez sans limites. Ni garanties.**
 
 CADastrophe est une application de CAO 3D paramétrique pour le bureau. Elle permet de construire des pièces à partir d’esquisses contraintes et d’un arbre de fonctions, puis de modifier leurs dimensions à l’aide de variables et d’équations.
 
@@ -29,6 +29,45 @@ Le projet est en développement. La plateforme actuellement utilisée pour la va
 - **Travailler sur plusieurs documents** : projets natifs `.cada`, copie de constructions paramétriques, préférences et récupération.
 - **Mesurer et échanger** : longueurs, surfaces, volumes et masses ; matériaux avec masse volumique par corps ; import STEP et exports STEP, STL, OBJ, 3MF et glTF/GLB.
 - **Étendre l’application** : plugins Python locaux, actions, panneaux, outils interactifs et types persistants ; voir le [guide de création des plugins](plugins/docs/README.md).
+
+## Découverte
+
+Quelques fonctionnalités de CADastrophe en images.
+Cliquer sur une capture pour l’agrandir.
+
+### Esquisser et coter
+
+Dessinez le contour d’une pièce en 2D et donnez-lui des dimensions précises.
+Les contraintes maintiennent, par exemple, deux côtés perpendiculaires. Changez
+une cote pour ajuster le dessin sans tout retracer.
+
+[![Esquisse rectangulaire et ses cotes dans CADastrophe](examples/decouverte/02-esquisse-complete.png)](examples/decouverte/02-esquisse-complete.png)
+
+### Construire une pièce par fonctions
+
+Le [support de palier](examples/decouverte/support-palier.cada) combine une semelle
+aux angles arrondis, un logement cylindrique alésé, deux nervures, quatre fixations
+lamées et six perçages axiaux. Ses neuf fonctions restent modifiables dans l’arbre.
+
+[![Support de palier nervuré, alésé et percé dans CADastrophe, avec son arbre de construction](examples/decouverte/01-support-palier.png)](examples/decouverte/01-support-palier.png)
+
+### Décliner une pièce en plusieurs configurations
+
+Conserver le même arbre et faire varier les paramètres selon la configuration.
+La [platine à moyeu](examples/decouverte/platine-nervuree.cada) comporte six
+raidisseurs répétés, six bossages lamés, trois évidements et une gorge annulaire.
+Elle propose trois variantes : **Standard**, **Moyeu haut** et **Sans raidisseurs**.
+La hauteur du moyeu est pilotée par une variable ; la gorge suit sa face supérieure.
+
+[![Platine nervurée dans la configuration Moyeu haut, avec ses paramètres dans CADastrophe](examples/decouverte/03-platine-nervuree.png)](examples/decouverte/03-platine-nervuree.png)
+
+### Balayer un profil sur une hélice
+
+Utiliser une courbe comme parcours et régler le balayage depuis son panneau.
+Le [ressort paramétrique](tests/fonctions/courbes/ressort_avant.cada) associe une
+hélice, une esquisse circulaire et une fonction de balayage.
+
+[![Aperçu natif du balayage d’un profil circulaire sur une hélice, avec son panneau de paramètres](examples/decouverte/04-helice.png)](examples/decouverte/04-helice.png)
 
 ## Installer et démarrer
 

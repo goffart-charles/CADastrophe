@@ -27,7 +27,8 @@ OutputBaseFilename=CADastrophe-{#AppVersion}-windows-x64-setup
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\CADastrophe.exe
+SetupIconFile={#SourceDir}\CADastrophe.ico
+UninstallDisplayIcon={app}\CADastrophe.ico
 CloseApplications=yes
 RestartApplications=no
 
@@ -46,8 +47,8 @@ Type: filesandordirs; Name: "{app}\runtime"; Check: ExistingInstallation
 #include AddBackslash(SourceDir) + "..\obsolete-files.iss"
 
 [Icons]
-Name: "{group}\CADastrophe"; Filename: "{app}\CADastrophe.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\CADastrophe"; Filename: "{app}\CADastrophe.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\CADastrophe"; Filename: "{app}\CADastrophe.exe"; WorkingDir: "{app}"; IconFilename: "{app}\CADastrophe.ico"; IconIndex: 0
+Name: "{autodesktop}\CADastrophe"; Filename: "{app}\CADastrophe.exe"; WorkingDir: "{app}"; IconFilename: "{app}\CADastrophe.ico"; IconIndex: 0; Tasks: desktopicon
 
 [UninstallDelete]
 Type: files; Name: "{app}\runtime\.cadastrophe-prefix"
