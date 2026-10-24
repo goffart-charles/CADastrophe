@@ -133,8 +133,8 @@ class _Evaluator:
             return self._failure(feature, exc)
 
     def evaluate_steps(self, feature, sketch, previous_shape, supports):
-        from cadastrophe.core.feature_objects import SweepFeature, ReplayFeature
-        if not isinstance(feature, (SweepFeature, ReplayFeature)):
+        from cadastrophe.core.feature_objects import SweepFeature, ReplayFeature, ThreadFeature
+        if not isinstance(feature, (SweepFeature, ReplayFeature, ThreadFeature)):
             return self.evaluate(feature, sketch, previous_shape, supports)
         from .operation_replay import generating_volumes_steps, replay_steps
         from cadastrophe.core.operation_effects import apply_effects
@@ -144,7 +144,7 @@ class _Evaluator:
                 shape, effects = yield from replay_steps(self.extrusions, context, feature, previous_shape, trace)
             else:
                 effects = yield from generating_volumes_steps(self.extrusions, context, feature, previous_shape, trace)
-                yield 0, 1, "Application du balayage au corps"
+                yield 0, 1, "Application au corps"
                 shape = apply_effects(previous_shape, effects, trace=trace)
             return EvaluationResult(ResultStatus.READY, shape, topology=trace.topology, effects=effects)
         except (ValueError,RuntimeError,TypeError,ArithmeticError) as exc:

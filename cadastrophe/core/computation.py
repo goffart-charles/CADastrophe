@@ -46,8 +46,8 @@ def complete(steps):
 
 def cooperative_required(objects, *, threshold=32):
     """Use steps for long histories and costly native surface constructions."""
-    from .feature_objects import ConstructionFeature, SweepFeature, LoftFeature, ReplayFeature
+    from .feature_objects import ConstructionFeature, SweepFeature, LoftFeature, ReplayFeature, ThreadFeature
     return (sum(isinstance(obj, ConstructionFeature) for obj in objects.values()) >= threshold
-            or any(isinstance(obj, (SweepFeature, LoftFeature))
+            or any(isinstance(obj, (SweepFeature, LoftFeature, ThreadFeature))
                    or isinstance(obj, ReplayFeature) and obj.parameters.count >= threshold
                    for obj in objects.values()))

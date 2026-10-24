@@ -2,12 +2,13 @@
 from dataclasses import replace
 
 from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QCheckBox, QListWidget, QListWidgetItem, QLabel
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSignalBlocker
 from cadastrophe.plugin_api import LengthSpinBox, EquationSpinBox, bind_fields
 from cadastrophe.document import ObjectType, SceneObject
 from cadastrophe.core.feature_objects import HoleFeature, SketchSourceObject
 from cadastrophe.core.feature_model import Operation
 from cadastrophe.core.hole_model import HoleParameters
+from cadastrophe.core.fastener_catalog import FAMILIES, hole_choices, hole_form
 from cadastrophe.core.operation_model import GeometryReference
 from .recipe_session import RecipePreview, adopted, unique_name
 from .revolution_tool import sketch_input
@@ -26,6 +27,7 @@ class HoleSession(RecipePreview):
         form = QFormLayout(self.editor)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         p = self.feature.parameters if self.feature else HoleParameters()
+        self.catalog_choice = p.catalog
         self.source, self.body = QComboBox(), QComboBox()
         self.source.setObjectName("holeSketch")
         self.body.setObjectName("holeTarget")
@@ -50,6 +52,17 @@ class HoleSession(RecipePreview):
         self.positions.setObjectName("holePositions")
         self.positions.setMaximumHeight(120)
         form.addRow("Points", self.positions)
+        self.catalog_family, self.catalog_size = QComboBox(), QComboBox()
+        self.catalog_family.setObjectName("holeCatalogFamily")
+        self.catalog_size.setObjectName("holeCatalogSize")
+        self.catalog_family.addItem("Dimensions personnalisées", None)
+        for key, label in FAMILIES:
+            self.catalog_family.addItem(label, key)
+        form.addRow("Usage", self.catalog_family)
+        form.addRow("Taille", self.catalog_size)
+        self.catalog_info = QLabel()
+        self.catalog_info.setWordWrap(True)
+        form.addRow(self.catalog_info)
         self.form = QComboBox()
         for label, value in (("Simple", "simple"), ("Lamé", "counterbore"), ("Fraisé", "countersink")):
             self.form.addItem(label, value)
@@ -93,13 +106,64 @@ class HoleSession(RecipePreview):
             field.valueChanged.connect(changed)
             field.lineEdit().textEdited.connect(changed)
         bind_fields(self, self.fields)
+        self.catalog_family.currentIndexChanged.connect(self.refresh_catalog)
+        self.catalog_size.currentIndexChanged.connect(self.select_catalog)
+        if p.catalog is not None:
+            with QSignalBlocker(self.catalog_family):
+                self.catalog_family.setCurrentIndex(self.catalog_family.findData(p.catalog.family))
+            self.refresh_catalog(saved=p.catalog)
+        else:
+            self.refresh_catalog()
         self.refresh_points()
         return self.editor
+
+    def refresh_catalog(self, *_args, saved=None):
+        family = self.catalog_family.currentData()
+        with QSignalBlocker(self.catalog_size):
+            self.catalog_size.clear()
+            if family:
+                for choice in hole_choices(family):
+                    self.catalog_size.addItem(choice.designation, choice)
+                if saved is not None:
+                    # A saved snapshot remains authoritative even after data updates.
+                    index = next((i for i in range(self.catalog_size.count())
+                                  if self.catalog_size.itemData(i) == saved), -1)
+                    if index < 0:
+                        self.catalog_size.addItem(saved.designation + " · enregistré", saved)
+                        index = self.catalog_size.count() - 1
+                    self.catalog_size.setCurrentIndex(index)
+            self.catalog_size.setEnabled(bool(family))
+        if saved is not None:
+            self.catalog_choice = saved
+            self.refresh_fields()
+        else:
+            self.select_catalog()
+
+    def select_catalog(self, *_):
+        self.catalog_choice = self.catalog_size.currentData()
+        if self.catalog_choice is not None:
+            with QSignalBlocker(self.form):
+                self.form.setCurrentIndex(self.form.findData(hole_form(self.catalog_choice)))
+            for key, value in self.catalog_choice.dimensions:
+                widget = self.fields[key]
+                with QSignalBlocker(widget):
+                    widget.clear_equation()
+                    if key == "angle":
+                        widget.setValue(value)
+                    else:
+                        widget.set_internal_value(value)
+        self.refresh_fields()
 
     def refresh_points(self, *_):
         self.positions.clear()
         obj = self.document.objects.get(self.source.currentData())
         if obj is not None:
+            if not self.feature:
+                supports = set(obj.body_dependencies)
+                available = [self.body.itemData(i) for i in range(self.body.count()) if self.body.itemData(i)]
+                target = next(iter(supports)) if len(supports) == 1 else available[0] if len(available) == 1 else None
+                if target in available:
+                    self.body.setCurrentIndex(self.body.findData(target))
             selected = self.feature.parameters.positions if self.feature else ()
             keys = {r.entity_id for r in selected}
             # Keep missing selections visible and invalid until explicitly repaired.
@@ -119,7 +183,21 @@ class HoleSession(RecipePreview):
         self.fields["head_depth"].setEnabled(form == "counterbore")
         self.fields["angle"].setEnabled(form == "countersink")
         self.positions.setEnabled(not self.all_points.isChecked())
+        self.refresh_catalog_info()
         self.changed()
+
+    def refresh_catalog_info(self):
+        choice = self.catalog_choice
+        if choice is None:
+            self.catalog_info.setText("Dimensions libres.")
+            return
+        values = {key: field.value() if key == "angle" else field.internal_value for key, field in self.fields.items()}
+        matching = self.form.currentData() == hole_form(choice) and all(abs(values[k] - v) < 1e-9 for k, v in choice.dimensions)
+        text = choice.designation if matching else "Dimensions personnalisées · origine " + choice.designation
+        self.catalog_info.setText(text + " · données " + choice.version +
+            (" · taraudage par coupe" if choice.family == "tap_drill" else "") +
+            (" · profondeur de lamage à choisir" if choice.family == "counterbore" else ""))
+        self.catalog_info.setToolTip(choice.source)
 
     def preview_steps(self):
         self.check_snapshot()
@@ -143,7 +221,8 @@ class HoleSession(RecipePreview):
             if not positions:
                 raise ValueError("Choisissez au moins un point de positionnement.")
         parameters = replace(initial, **values, form=self.form.currentData(), end_condition=self.condition.currentData(),
-                             reversed=self.reverse.isChecked(), positions=positions)
+                             reversed=self.reverse.isChecked(), positions=positions, catalog=self.catalog_choice)
+        self.refresh_catalog_info()
         source = sketch_input(self.document, sketch)
         key = source, target.id, parameters
         if key != self._key:

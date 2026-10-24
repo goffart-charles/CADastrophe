@@ -5,7 +5,7 @@ from weakref import ref
 from PySide6.QtCore import QObject, Signal
 
 from .feature_model import BodyStateRef, ResultStatus
-from .feature_objects import BodyObject, ConstructionFeature, SketchSourceObject, ShellFeature, DraftFeature
+from .feature_objects import BodyObject, ConstructionFeature, SketchSourceObject, ShellFeature, DraftFeature, ThreadFeature
 from .reference_objects import DatumPlaneObject
 
 
@@ -193,7 +193,7 @@ def insertion_candidate(document, candidate):
             feature = candidate.get(key)
             if not isinstance(feature, ConstructionFeature):
                 raise ValueError("Fonction à insérer absente de la construction.")
-            if isinstance(feature, (ShellFeature, DraftFeature)):
+            if isinstance(feature, (ShellFeature, DraftFeature, ThreadFeature)):
                 candidate[key] = replace(feature, input_state=BodyStateRef(obj.id, previous))
             previous = key
     from .reference_graph import feature_inputs, reference_inputs

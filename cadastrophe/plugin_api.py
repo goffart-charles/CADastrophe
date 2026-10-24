@@ -22,6 +22,9 @@ from .ui.length_input import LengthSpinBox
 from .ui.equation_input import EquationSpinBox, EquationIntSpinBox, bind_fields, equation_recipe
 from .core.hole_model import HoleParameters
 from .core.feature_objects import HoleFeature
+from .core.thread_model import ThreadParameters
+from .core.feature_objects import ThreadFeature
+from .core.fastener_catalog import CatalogChoice
 from .ui.file_dialogs import suggested_filename, file_error_text
 from .document import SceneObject, ObjectType, SelectionItem
 

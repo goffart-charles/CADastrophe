@@ -22,6 +22,7 @@ FEATURE_TOOLS = (
     FeatureTool("boundary", "Volume par frontières", "Frontières +", "boundary"),
     FeatureTool("cut_extrude", "Découpe extrudée", "Découper\npar extrusion", "cut-extrude"),
     FeatureTool("hole_wizard", "Perçage guidé", "Perçage guidé", "hole-wizard"),
+    FeatureTool("thread", "Filetage / taraudage", "Filetage", "sweep"),
     FeatureTool("cut_revolve", "Révolution soustractive", "Révolution −", "cut-revolve"),
     FeatureTool("cut_sweep", "Découpe par balayage", "Balayage −", "cut-sweep"),
     FeatureTool("cut_loft", "Découpe lissée", "Lissage −", "cut-loft"),
@@ -43,7 +44,7 @@ FEATURE_TOOLS = (
 FEATURE_GROUPS = (
     ("Volumes", (("extrude",), ("cut_extrude",), ("revolve", "cut_revolve"))),
     ("Parcours", (("sweep", "cut_sweep"), ("loft", "cut_loft"), ("boundary", "cut_boundary"))),
-    ("Finitions", (("fillet",), ("chamfer",), ("hole_wizard", "shell"), ("draft", "rib"))),
+    ("Finitions", (("fillet",), ("chamfer",), ("hole_wizard", "thread"), ("shell", "draft", "rib"))),
     ("Motifs", (("linear_pattern",), ("mirror", "wrap", "intersect"))),
     ("Repères", (("reference_geometry", "curves"),)),
 )

@@ -2,7 +2,7 @@
 from dataclasses import replace
 from hashlib import sha256
 from cadastrophe.core.feature_model import BodyStateRef, Operation
-from cadastrophe.core.feature_objects import ExtrusionFeature, RevolutionFeature, ReplayFeature, SweepFeature, LoftFeature, HoleFeature
+from cadastrophe.core.feature_objects import ExtrusionFeature, RevolutionFeature, ReplayFeature, SweepFeature, LoftFeature, HoleFeature, ThreadFeature
 from cadastrophe.core.operation_effects import VolumeEffect, apply_effects, occurrence_transforms, transform_effect
 from cadastrophe.core.reference_geometry import resolve_reference, resolve_axis_reference, state_for
 from cadastrophe.core.native_naming import NamingTrace
@@ -24,6 +24,14 @@ def generating_volumes_steps(service, document, feature, previous, trace):
         from cadastrophe.core.feature_model import InactiveReferenceError
         raise InactiveReferenceError("La fonction source est désactivée : " + feature.name, (feature.id,))
     p = feature.parameters
+    if isinstance(feature, ThreadFeature):
+        from cadastrophe.core.thread_geometry import thread_tools_steps
+        from cadastrophe.core.reference_geometry import state_for
+        state = state_for(document, feature.input_state)
+        # Exact producer geometry supplies the selected support even during replay.
+        shapes = yield from thread_tools_steps(state.shape, p, topology=state.topology, trace=trace)
+        return tuple(VolumeEffect(Operation.CUT, shape, next(t for s, t in reversed(trace.known) if s.IsSame(shape)),
+                                  (feature.id, str(i)), feature.id) for i, shape in enumerate(shapes))
     if isinstance(feature, HoleFeature):
         from .hole_geometry import generating_holes
         return generating_holes(service, document, feature, previous, trace)

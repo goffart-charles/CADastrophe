@@ -16,8 +16,15 @@ class HoleParameters:
     angle: float = 90.
     # Empty means all point entities, including associative occurrences.
     positions: tuple[GeometryReference, ...] = ()
+    catalog: object = None
 
     def __post_init__(self):
+        from .fastener_catalog import CatalogChoice
+        if self.catalog is not None and not isinstance(self.catalog, CatalogChoice):
+            raise ValueError("Choix du catalogue de perçage invalide.")
+        if self.catalog is not None and any(key not in {"diameter", "head_diameter", "angle"}
+                                            for key, _ in self.catalog.dimensions):
+            raise ValueError("Le catalogue contient des dimensions incompatibles avec un perçage.")
         if type(self.form) is not str or self.form not in {"simple", "counterbore", "countersink"}:
             raise ValueError("Forme de perçage inconnue.")
         if (type(self.end_condition) is not str or self.end_condition not in {"blind", "through_all"}
@@ -33,3 +40,8 @@ class HoleParameters:
                 or any(not isinstance(r, GeometryReference) or r.kind != "sketch_point" or r.part != "position"
                        for r in self.positions) or len(set(self.positions)) != len(self.positions)):
             raise ValueError("Choisissez des points d’esquisse distincts (512 maximum).")
+
+    @property
+    def catalog_active(self):
+        from .fastener_catalog import hole_form
+        return self.catalog is not None and self.form == hole_form(self.catalog) and self.catalog.matches(self)

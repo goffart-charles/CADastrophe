@@ -7,7 +7,7 @@ from dataclasses import fields, replace
 from types import MappingProxyType
 
 from .feature_model import BodyStateRef, Operation, EvaluationResult, ResultStatus, EvaluationDiagnostic
-from .feature_objects import BodyObject, ExtrusionFeature, SketchSourceObject, ConstructionFeature, EdgeFeature, ShellFeature, DraftFeature
+from .feature_objects import BodyObject, ExtrusionFeature, SketchSourceObject, ConstructionFeature, EdgeFeature, ShellFeature, DraftFeature, ThreadFeature
 
 
 def _failure_roots(failures):
@@ -60,7 +60,7 @@ def validate_graph(objects):
                     raise ValueError("Le producteur enregistré sur l’esquisse doit être conservé dans la fonction.")
             inputs = feature_dependencies(objects, feature)
             deps = {inputs.predecessor.producer_id} if inputs.predecessor is not None and inputs.predecessor.producer_id is not None else set()
-            if isinstance(feature, (ShellFeature, DraftFeature)) and feature.input_state != BodyStateRef(body.id, previous):
+            if isinstance(feature, (ShellFeature, DraftFeature, ThreadFeature)) and feature.input_state != BodyStateRef(body.id, previous):
                 raise ValueError("La fonction doit référencer l’état immédiatement précédent de son corps.")
             for ref in inputs.evaluation_states:
                 target = bodies.get(ref.body_id)

@@ -13,13 +13,14 @@ encode, decode, ...)` avec `context.register_type(codec)`.
 |---|---|
 | `type_id` | Préfixé par l'identifiant du plugin suivi d'un point ; unique. |
 | `object_class` | Sous-classe propre au codec, différente de SceneObject. |
-| `version` | Entier positif. Le lecteur accepte uniquement la version courante. |
+| `version` | Entier positif ; les anciennes versions nécessitent un migrateur explicitement déclaré. |
 | `encode(obj)` | Dictionnaire JSON fini : pas de tuple, QObject, AIS, forme native ou cache. |
 | `decode(base, data)` | Retourne exactement la classe enregistrée, en conservant tous les champs communs et l'identité de `base.shape`. |
 | `clipboard_references(data)` | Liste/tuple de UUID canoniques référencés par la recette. |
 | `clipboard_remap(data, id_map)` | Remappe toutes ces références avec la table en lecture seule fournie par l'hôte. |
 | `validate_references(obj, objects)` | Validation contre la table complète des objets après décodage du lot. |
 | `native_resources` | Tuple de noms de champs de la dataclass contenant des B-Rep sources exactes, stockées séparément du JSON. |
+| `migrate(version, data)` | Optionnel : transforme les données JSON d’une ancienne version vers la version courante. Doit refuser les versions non prises en charge ; les versions futures sont toujours refusées par l’hôte. |
 
 Les deux fonctions de presse-papiers sont optionnelles mais doivent être
 déclarées ensemble, même pour un type sans référence qui retourne `()`.
@@ -78,6 +79,21 @@ retourne le repère résolu et les couples `(UUID, point monde)`. Une sélection
 vide suit tous les points, dont les occurrences associatives. Les volumes
 soustractifs restent rejouables et les traversées sont recalculées sur la cible
 de chaque occurrence.
+
+`HoleParameters.catalog` conserve un `CatalogChoice` immuable : famille,
+désignation, version, provenance, unités et dimensions choisies. Le lecteur ne
+consulte aucun catalogue pour reconstruire les projets. La version 3 du codec
+de perçage migre explicitement la version 2 vers des dimensions libres.
+`catalog_active` distingue le préréglage intact de dimensions personnalisées
+qui conservent leur provenance, y compris après équations ou configurations.
+
+`ThreadFeature` et `ThreadParameters` exposent une fonction soustractive
+paramétrique sur une face cylindrique persistante et un `input_state` exact.
+Profil, hélice et volumes de coupe sont dérivés ; ils ne constituent pas un
+second historique et ne sont pas sérialisés. Les motifs transforment ces seuls
+volumes d’effet. Le codec de filetage conserve aussi le préréglage choisi et
+sa provenance. Les exports de solides conservent leur géométrie, sans garantir
+le transport de la recette métier dans les formats d’échange.
 
 Le viewport conserve sa navigation native et le chemin commun de conversion
 écran/rayon/repère ; appliquer le facteur DPI une fois. Les saisies et résultats

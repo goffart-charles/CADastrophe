@@ -67,7 +67,8 @@ def test_embedded_menu_survives_deferred_deletion(window, qt_app):
 def test_unavailable_tools_are_explicitly_disabled(window):
     pending = [command.action for command in window.command_registry
                if not command.implemented and command.category in ("Esquisse", "Fonctions", "Évaluation")]
-    assert len(pending) == len(FEATURE_TOOLS) - 17  # Extrusions, revolutions, sweeps, lofts, finishes, holes, shell, draft, datums and motifs.
+    assert len(pending) == len(FEATURE_TOOLS) - 18  # Includes real threads in addition to the existing modeling tools.
+    assert window.command_registry.command("modeling.thread").implemented
     assert window.command_registry.command("modeling.extrude").implemented
     assert window.command_registry.command("cadastrophe.modeling.extrude").implemented
     placeholders = [command.action for command in window.command_registry

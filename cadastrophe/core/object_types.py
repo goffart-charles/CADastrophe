@@ -40,6 +40,7 @@ class ObjectCodec:
     validate_references: object = None  # (object, read-only complete UUID/object map) -> None
     # Exact B-Reps stored separately by schema v5, never encoded into JSON.
     native_resources: tuple[str, ...] = ()
+    migrate: object = None  # (older version, JSON data) -> current JSON data
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,8 @@ class ObjectTypeRegistry:
             raise ValueError("Les deux fonctions de copie des références sont requises.")
         if codec.validate_references is not None and not callable(codec.validate_references):
             raise ValueError("Le validateur de références doit être appelable.")
+        if codec.migrate is not None and not callable(codec.migrate):
+            raise ValueError("Le migrateur de recette doit être appelable.")
         common = {item.name for item in fields(SceneObject)}
         available = {item.name for item in fields(codec.object_class)}
         if (type(codec.native_resources) is not tuple or len(codec.native_resources) > 16 or len(set(codec.native_resources)) != len(codec.native_resources)
@@ -189,10 +192,13 @@ class ObjectTypeRegistry:
         binding = self.binding(identifier(extension["type_id"]))
         codec = binding.codec
         version = extension["version"]
-        if type(version) is not int or version != codec.version:
+        if (type(version) is not int or version < 1 or version > codec.version
+                or version != codec.version and codec.migrate is None):
             raise ValueError(f"Version du type non prise en charge : {codec.type_id}.")
         try:
             data = json_data(extension["data"])
+            if version != codec.version:
+                data = json_data(codec.migrate(version, data))
             if not isinstance(data, dict):
                 raise ValueError("Données du type invalides.")
             result = codec.decode(base, data)

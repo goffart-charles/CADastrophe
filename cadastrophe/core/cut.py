@@ -93,7 +93,8 @@ def cut_solid(base, tool, *, tolerance=1e-7, base_faces=None, trace=None, allow_
         if any(not isfinite(v) or v <= tolerance**3 for v in (initial, tool_volume)):
             return failure("invalid_volume", "Un des solides possède un volume nul, inversé ou non fini.")
         precision = max(tolerance**3, 64*ulp(initial))
-        overlap = volume(boolean(BRepAlgoAPI_Common).Shape())
+        common_shape = boolean(BRepAlgoAPI_Common).Shape()
+        overlap = volume(common_shape)
         if not isfinite(overlap) or overlap < -precision:
             return failure("invalid_volume", "Le volume d’intersection n’est pas valide.")
         if overlap <= precision:
@@ -116,7 +117,16 @@ def cut_solid(base, tool, *, tolerance=1e-7, base_faces=None, trace=None, allow_
         if not isfinite(actual) or actual <= precision or removed <= precision:
             return failure("invalid_volume", "La coupe ne produit pas un enlèvement positif et un solide restant valide.")
         if abs(removed-overlap) > max(initial*1e-8, precision):
-            return failure("volume_mismatch", "Le bilan de volume de la coupe est incohérent.")
+            # Fixed quadrature can disagree on trimmed helical BSpline faces.
+            # Reintegrate all three volumes adaptively, retaining the same
+            # conservation requirement and rejecting failed error estimates.
+            from .mass_properties import precise_volume
+            initial, actual, overlap = (precise_volume(s) for s in (base, solid, common_shape))
+            removed = initial - actual
+            precision = max(tolerance**3, 64*ulp(initial))
+            if (actual <= precision or removed <= precision or overlap <= precision
+                    or abs(removed-overlap) > max(initial*1e-8, precision)):
+                return failure("volume_mismatch", "Le bilan de volume de la coupe est incohérent.")
         originals = items(base, TopAbs_FACE) if base_faces is None else base_faces
         preserved, final_faces = [], items(solid, TopAbs_FACE)
         for face in originals:

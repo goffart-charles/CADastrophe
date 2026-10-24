@@ -327,6 +327,44 @@ class HoleFeature(ConstructionFeature):
 
 
 @dataclass(frozen=True)
+class ThreadFeature(ConstructionFeature):
+    replayable = True
+    body_id: str = field(kw_only=True)
+    operation: Operation = field(kw_only=True)
+    input_state: BodyStateRef = field(kw_only=True)
+    parameters: object = field(kw_only=True)
+
+    def __post_init__(self):
+        from .thread_model import ThreadParameters
+        super().__post_init__()
+        uuid(self.body_id)
+        if (self.kind is not ObjectType.FEATURE or self.operation is not Operation.CUT
+                or not isinstance(self.input_state, BodyStateRef) or self.input_state.body_id != self.body_id
+                or not isinstance(self.parameters, ThreadParameters) or self.parameters.face.object_id != self.body_id):
+            raise ValueError("Description de filetage invalide.")
+
+    @property
+    def geometry_references(self):
+        return (self.parameters.face,)
+
+    @property
+    def support_refs(self):
+        return (self.input_state,)
+
+    @property
+    def recipe_source(self):
+        return self.input_state
+
+    def equation_dimensions(self):
+        from .parameters import Dimension
+        keys = ("diameter", "pitch", "length", "offset", "phase", "angle", "depth", "root_flat",
+                "root_radius", "clearance", "lead_in", "lead_out", "starts")
+        return tuple(Dimension(self.id, key, f"D{i}@{self.name}", getattr(self.parameters, key),
+                               "angle" if key in {"phase", "angle"} else "number" if key == "starts" else "length",
+                               key == "starts") for i, key in enumerate(keys, 1))
+
+
+@dataclass(frozen=True)
 class ReplayFeature(ConstructionFeature):
     replayable = True
     operation: Operation = field(kw_only=True)

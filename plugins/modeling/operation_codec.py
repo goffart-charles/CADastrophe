@@ -210,7 +210,7 @@ def encode_hole(obj):
                 source=dict(sketch_id=obj.sketch_id, supports=[asdict(r) for r in obj.support_refs]),
                 parameters={**{key: getattr(p, key) for key in
                     ("form", "diameter", "depth", "end_condition", "reversed", "head_diameter", "head_depth", "angle")},
-                    "positions": [encode_geometry(r) for r in p.positions]})
+                    "positions": [encode_geometry(r) for r in p.positions], "catalog": encode_catalog(p.catalog)})
 
 
 def decode_hole(base, data):
@@ -218,7 +218,7 @@ def decode_hole(base, data):
     exact(data, "body_id operation source parameters")
     source, p = data["source"], data["parameters"]
     exact(source, "sketch_id supports")
-    exact(p, "form diameter depth end_condition reversed head_diameter head_depth angle positions")
+    exact(p, "form diameter depth end_condition reversed head_diameter head_depth angle positions catalog")
     if (type(source["supports"]) is not list or len(source["supports"]) > 512
             or type(p["positions"]) is not list or len(p["positions"]) > 512):
         raise ValueError("Sources de perçage invalides.")
@@ -226,8 +226,58 @@ def decode_hole(base, data):
         exact(item, "body_id producer_id")
     return HoleFeature(**base_fields(base), body_id=data["body_id"], operation=Operation(data["operation"]),
         source=SketchInput(source["sketch_id"], tuple(BodyStateRef(**r) for r in source["supports"])),
-        parameters=HoleParameters(**dict(p, positions=tuple(decode_geometry(r) for r in p["positions"]))))
+        parameters=HoleParameters(**dict(p, positions=tuple(decode_geometry(r) for r in p["positions"]), catalog=decode_catalog(p["catalog"]))))
 
 
 HOLE_CODEC = with_activation(ObjectCodec("cadastrophe.modeling.hole", HoleFeature, 1, encode_hole, decode_hole,
                              clipboard_references=recipe_references, clipboard_remap=remap_recipe))
+
+
+def encode_catalog(choice):
+    return None if choice is None else dict(asdict(choice), dimensions=[list(item) for item in choice.dimensions])
+
+
+def decode_catalog(data):
+    from cadastrophe.core.fastener_catalog import CatalogChoice
+    if data is None:
+        return None
+    exact(data, "family designation version source nominal pitch dimensions unit")
+    if type(data["dimensions"]) is not list or any(type(item) is not list or len(item) != 2 for item in data["dimensions"]):
+        raise ValueError("Dimensions du catalogue invalides.")
+    return CatalogChoice(**dict(data, dimensions=tuple(tuple(item) for item in data["dimensions"])))
+
+
+def migrate_hole(version, data):
+    if version != 2:
+        raise ValueError("Version de perçage non migrable.")
+    p = data.get("parameters")
+    exact(p, "form diameter depth end_condition reversed head_diameter head_depth angle positions")
+    return dict(data, parameters=dict(p, catalog=None))
+
+
+HOLE_CODEC = replace(HOLE_CODEC, version=3, migrate=migrate_hole)
+
+
+def encode_thread(obj):
+    p = asdict(obj.parameters)
+    p["face"] = encode_geometry(obj.parameters.face)
+    p["catalog"] = encode_catalog(obj.parameters.catalog)
+    return dict(body_id=obj.body_id, operation=obj.operation.value, input_state=asdict(obj.input_state), parameters=p)
+
+
+def decode_thread(base, data):
+    from dataclasses import fields
+    from cadastrophe.core.thread_model import ThreadParameters
+    from cadastrophe.core.feature_objects import ThreadFeature
+    exact(data, "body_id operation input_state parameters")
+    exact(data["input_state"], "body_id producer_id")
+    p = data["parameters"]
+    exact(p, " ".join(f.name for f in fields(ThreadParameters)))
+    return ThreadFeature(**base_fields(base), body_id=data["body_id"], operation=Operation(data["operation"]),
+        input_state=BodyStateRef(**data["input_state"]), parameters=ThreadParameters(**dict(p,
+            face=decode_geometry(p["face"]), catalog=decode_catalog(p["catalog"]))))
+
+
+from cadastrophe.core.feature_objects import ThreadFeature
+THREAD_CODEC = with_activation(ObjectCodec("cadastrophe.modeling.thread", ThreadFeature, 1, encode_thread, decode_thread,
+                              clipboard_references=recipe_references, clipboard_remap=remap_recipe))

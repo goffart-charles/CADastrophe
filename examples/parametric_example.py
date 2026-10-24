@@ -20,7 +20,7 @@ from cadastrophe.core.reference_objects import DatumPlaneObject
 from plugins.modeling.codec import BODY_CODEC, EDGE_CODEC, FEATURE_CODEC
 from plugins.modeling.datums import refresh_datums
 from plugins.modeling.extrusion_service import Extrusions
-from plugins.modeling.operation_codec import PLANE_CODEC, REPLAY_CODEC, REVOLUTION_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC
+from plugins.modeling.operation_codec import PLANE_CODEC, REPLAY_CODEC, REVOLUTION_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC, THREAD_CODEC
 from plugins.modeling.restoration import restore_initial_extrusions
 from plugins.sketch import commands
 from plugins.sketch.codec import CODEC as SKETCH_CODEC
@@ -32,7 +32,7 @@ from plugins.sketch.profile_service import SketchProfiles
 def registry(service):
     result = ObjectTypeRegistry()
     result.register("cadastrophe.sketch", SKETCH_CODEC)
-    for codec in (BODY_CODEC, FEATURE_CODEC, EDGE_CODEC, PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC):
+    for codec in (BODY_CODEC, FEATURE_CODEC, EDGE_CODEC, PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC, THREAD_CODEC):
         result.register("cadastrophe.modeling", codec)
     result.register_document_restorer("cadastrophe.modeling", lambda doc: restore_initial_extrusions(doc, service))
     return result

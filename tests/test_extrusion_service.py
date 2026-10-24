@@ -62,7 +62,7 @@ def test_public_native_service_leaves_document_history_and_x1_body_unchanged(har
         "cadastrophe.modeling.disable_features", "cadastrophe.modeling.enable_features",
         "cadastrophe.modeling.repair_references", "cadastrophe.modeling.select_parents",
         "cadastrophe.modeling.select_consumers", "cadastrophe.modeling.select_error_sources", "cadastrophe.modeling.edit_feature",
-        "cadastrophe.modeling.hole_wizard",
+        "cadastrophe.modeling.hole_wizard", "cadastrophe.modeling.thread",
         "cadastrophe.modeling.shell", "cadastrophe.modeling.draft", "cadastrophe.modeling.edit_plane", "cadastrophe.modeling.reference_plane", "cadastrophe.modeling.revolve",
         "cadastrophe.modeling.cut_revolve", "cadastrophe.modeling.sweep", "cadastrophe.modeling.cut_sweep", "cadastrophe.modeling.loft", "cadastrophe.modeling.cut_loft", "cadastrophe.modeling.mirror", "cadastrophe.modeling.linear_pattern",
         "cadastrophe.modeling.circular_pattern",

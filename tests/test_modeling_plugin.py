@@ -21,14 +21,16 @@ def test_plugin_dependency_service_types_and_undo_retention_use_existing_framewo
     records = {r.manifest.id: r for r in h.manager.records}
     assert records["cadastrophe.modeling"].state == "active"
     service = h.services.service("cadastrophe.modeling.history")
-    assert len(h.types.owned_classes("cadastrophe.modeling")) == 11
+    assert len(h.types.owned_classes("cadastrophe.modeling")) == 12
+    from cadastrophe.core.feature_objects import ThreadFeature
+    assert ThreadFeature in h.types.owned_classes("cadastrophe.modeling")
     assert [command.id for command in h.registry if command.id.startswith("cadastrophe.modeling.")] == [
         "cadastrophe.modeling.extrude", "cadastrophe.modeling.cut_extrude",
         "cadastrophe.modeling.history_before", "cadastrophe.modeling.history_after", "cadastrophe.modeling.history_end",
         "cadastrophe.modeling.disable_features", "cadastrophe.modeling.enable_features",
         "cadastrophe.modeling.repair_references", "cadastrophe.modeling.select_parents",
         "cadastrophe.modeling.select_consumers", "cadastrophe.modeling.select_error_sources", "cadastrophe.modeling.edit_feature",
-        "cadastrophe.modeling.hole_wizard",
+        "cadastrophe.modeling.hole_wizard", "cadastrophe.modeling.thread",
         "cadastrophe.modeling.shell", "cadastrophe.modeling.draft", "cadastrophe.modeling.edit_plane", "cadastrophe.modeling.reference_plane", "cadastrophe.modeling.revolve",
         "cadastrophe.modeling.cut_revolve", "cadastrophe.modeling.sweep", "cadastrophe.modeling.cut_sweep", "cadastrophe.modeling.loft", "cadastrophe.modeling.cut_loft", "cadastrophe.modeling.mirror", "cadastrophe.modeling.linear_pattern",
         "cadastrophe.modeling.circular_pattern",

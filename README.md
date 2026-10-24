@@ -23,6 +23,7 @@ Le projet est en développement. La plateforme actuellement utilisée pour la va
 - **Dessiner et contraindre** : esquisses sur plans ou faces planes, points, segments, arcs, cercles, ellipses, splines et texte en contours ; cotations, contraintes, rognage et décalage.
 - **Construire des volumes** : extrusions et révolutions additives ou soustractives, balayages, lissages, congés, chanfreins, coques et dépouilles.
 - **Créer des courbes** : hélices cylindriques ou coniques, spirales planes et courbes 3D interpolées par points, utilisables comme parcours de balayage.
+- **Préparer des fixations** : perçages métriques de passage, lamages, fraisures et avant-trous de taraudage ; filetages internes et externes réellement modélisés, avec préréglages métriques et paramètres personnalisables.
 - **Piloter une pièce** : variables globales, bibliothèques de variables partagées dans un fichier texte, expressions dans les cotations, répétitions associatives d’esquisse et motifs de fonctions linéaires, circulaires ou symétriques.
 - **Reprendre une construction** : modifier les premières étapes, réparer les références, désactiver des fonctions et insérer une opération dans l’historique, avec annulation et rétablissement.
 - **Décliner une pièce** : configurations partageant le même arbre, avec valeurs, expressions et activations propres à chaque variante ; modification commune ou locale explicite.

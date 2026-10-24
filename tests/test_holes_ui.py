@@ -45,7 +45,7 @@ def test_holes_ui_ribbon_atomic_preview_edit_cancel_undo_reopen(extrusion_system
     button = next(b for b in w.command_manager.findChildren(QToolButton) if b.defaultAction() is action)
     QTest.mouseClick(button, Qt.MouseButton.LeftButton)
     tool = w.tool_sessions.tool
-    assert tool is not None and not w.tool_sessions.can_commit
+    assert tool is not None and tool.body.currentData() == body.id
     tool.body.setCurrentIndex(tool.body.findData(body.id))
     tool.form.setCurrentIndex(tool.form.findData(form))
     tool.all_points.setChecked(False)

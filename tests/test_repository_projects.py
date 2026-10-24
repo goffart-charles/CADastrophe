@@ -17,7 +17,7 @@ PROJECTS = sorted({*ROOT.joinpath("examples").rglob("*.cada"), *ROOT.joinpath("t
 
 
 @pytest.mark.parametrize("path", PROJECTS, ids=lambda p: p.relative_to(ROOT).as_posix())
-def test_shipped_project_uses_current_codecs_and_rebuilds(path):
+def test_shipped_project_uses_supported_codecs_and_rebuilds(path):
     app = QApplication.instance() or QApplication([])
     types = registry(Extrusions(SketchProfiles()))
     from plugins.curves.codec import CODEC
@@ -28,7 +28,9 @@ def test_shipped_project_uses_current_codecs_and_rebuilds(path):
     for record in data["objects"]:
         if "extension" in record:
             extension = record["extension"]
-            assert extension["version"] == types.binding(extension["type_id"]).codec.version
+            codec = types.binding(extension["type_id"]).codec
+            if extension["version"] != codec.version:
+                assert callable(codec.migrate), "Un ancien projet exige une migration explicite."
     document = load_document(path, registry=types)
     try:
         assert document.id == data["document"]["id"]

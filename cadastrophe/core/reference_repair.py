@@ -46,7 +46,7 @@ def reference_entries(document, object_id):
             field = path[-2] if isinstance(path[-1], int) else path[-1]
             role = ("axis" if field in {"axis", "direction", "reference"} and
                     (field != "reference" or isinstance(owner, ReplayFeature) and owner.operation.value != "mirror") else
-                    "curve" if field == "path" else "face" if field == "faces" else
+                    "curve" if field == "path" else "face" if field in {"faces", "face"} else
                     "plane" if field in {"neutral", "reference"} else
                     "point" if field == "positions" or getattr(owner.parameters, "method", None) == "three_points" else
                     "axis" if getattr(owner.parameters, "method", None) == "inclined" and path[-1] == 1 else "plane")

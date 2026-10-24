@@ -29,19 +29,10 @@ def build_curve(parameters, frame):
     from OCC.Core.gp import gp_Ax3, gp_Dir, gp_Pnt, gp_Pnt2d, gp_Dir2d
     p = parameters
     if p.kind == 'helix':
-        from OCC.Core.Geom import Geom_CylindricalSurface, Geom_ConicalSurface
-        from OCC.Core.Geom2d import Geom2d_Line
-        from OCC.Core.BRepLib import breplib
-        origin = frame.to_world(p.center_u, p.center_v)
-        axes = gp_Ax3(gp_Pnt(*origin.tuple()), gp_Dir(*frame.normal.tuple()), gp_Dir(*frame.u.tuple()))
-        angle = radians(p.conical_angle)
-        surface = Geom_ConicalSurface(axes, angle, p.radius) if angle else Geom_CylindricalSurface(axes, p.radius)
-        v_per_turn = p.pitch/cos(angle)
-        line = Geom2d_Line(gp_Pnt2d(radians(p.start_angle), 0.), gp_Dir2d(-2*pi if p.clockwise else 2*pi, v_per_turn))
-        length = p.turns*sqrt((2*pi)**2+v_per_turn**2)
-        edge = BRepBuilderAPI_MakeEdge(line, surface, 0., length).Edge()
-        if not breplib.BuildCurves3d(edge, TOLERANCE):
-            raise ValueError('Impossible de construire la courbe 3D de l’hélice.')
+        from dataclasses import replace
+        edge = helix_edge(replace(frame, origin=frame.to_world(p.center_u, p.center_v)),
+                          p.radius, p.pitch, p.turns, conical_angle=p.conical_angle,
+                          start_angle=p.start_angle, clockwise=p.clockwise)
     elif p.kind == 'points':
         edge = _interpolate(p.points, p.closed)
     else:
@@ -65,6 +56,25 @@ def build_curve(parameters, frame):
             count *= 2
     if edge.IsNull() or not BRepCheck_Analyzer(edge, True).IsValid():
         raise ValueError('La courbe calculée n’est pas une géométrie valide.')
+    return edge
+
+
+def helix_edge(frame, radius, pitch, turns, *, conical_angle=0., start_angle=0., clockwise=False, tolerance=TOLERANCE):
+    """One exact surface-based helix constructor for curves and thread tools."""
+    from OCC.Core.Geom import Geom_CylindricalSurface, Geom_ConicalSurface
+    from OCC.Core.Geom2d import Geom2d_Line
+    from OCC.Core.BRepLib import breplib
+    from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeEdge
+    from OCC.Core.gp import gp_Ax3, gp_Dir, gp_Pnt, gp_Pnt2d, gp_Dir2d
+    axes = gp_Ax3(gp_Pnt(*frame.origin.tuple()), gp_Dir(*frame.normal.tuple()), gp_Dir(*frame.u.tuple()))
+    angle = radians(conical_angle)
+    surface = Geom_ConicalSurface(axes, angle, radius) if angle else Geom_CylindricalSurface(axes, radius)
+    advance = pitch / cos(angle)
+    line = Geom2d_Line(gp_Pnt2d(radians(start_angle), 0.), gp_Dir2d(-2*pi if clockwise else 2*pi, advance))
+    length = turns * sqrt((2*pi)**2 + advance**2)
+    edge = BRepBuilderAPI_MakeEdge(line, surface, 0., length).Edge()
+    if not breplib.BuildCurves3d(edge, tolerance):
+        raise ValueError('Impossible de construire la courbe 3D de l’hélice.')
     return edge
 
 

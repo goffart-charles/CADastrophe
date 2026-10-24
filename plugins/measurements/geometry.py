@@ -92,9 +92,8 @@ def measure(mode, shapes, *, densities=None):
                     if not BRep_Tool.IsClosed(shells.Current()):
                         raise MeasurementError('Le corps contient une coque ouverte et ne définit pas un volume fermé.')
                     shells.Next()
-                props = GProp_GProps()
-                brepgprop.VolumeProperties(solid_shape, props, True, True, False)
-                value = props.Mass()
+                from cadastrophe.core.mass_properties import precise_volume
+                value = precise_volume(solid_shape)
                 if not isfinite(value) or value <= 0:
                     raise MeasurementError('Le corps ne définit pas un volume positif valide.')
                 volumes.append(value)

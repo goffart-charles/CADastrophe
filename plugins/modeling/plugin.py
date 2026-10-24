@@ -10,8 +10,10 @@ from .feature_edit import FeatureEditSession
 from cadastrophe.core.feature_objects import ExtrusionFeature, ConstructionFeature, EdgeFeature
 from cadastrophe.core.feature_model import Operation
 from .edge_tool import EdgeSession
-from .operation_codec import PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC
+from .operation_codec import PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC, THREAD_CODEC
 from .hole_tool import HoleSession
+from .thread_tool import ThreadSession
+from cadastrophe.core.feature_objects import ThreadFeature
 from cadastrophe.core.feature_objects import HoleFeature
 from .shell_tool import ShellSession
 from .draft_tool import DraftSession
@@ -31,7 +33,7 @@ class ModelingPlugin:
         context.register_type(BODY_CODEC)
         context.register_type(FEATURE_CODEC)
         context.register_type(EDGE_CODEC)
-        for codec in (PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC):
+        for codec in (PLANE_CODEC, REVOLUTION_CODEC, REPLAY_CODEC, SHELL_CODEC, DRAFT_CODEC, SWEEP_CODEC, LOFT_CODEC, HOLE_CODEC, THREAD_CODEC):
             context.register_type(codec)
         context.register_service("history", self.history)
         context.register_service("extrusions", self.extrusions)
@@ -104,6 +106,8 @@ class ModelingPlugin:
             context.register_action(key, label, lambda value=kind: select_related(value),
                                     enabled_when=inspectable, icon="tree")
         def editor_for(feature):
+            if isinstance(feature, ThreadFeature):
+                return ThreadSession(context.services, self.extrusions, feature)
             if isinstance(feature, HoleFeature):
                 return HoleSession(context.services, self.extrusions, profiles, feature)
             if isinstance(feature, LoftFeature):
@@ -136,6 +140,10 @@ class ModelingPlugin:
         context.register_action("hole_wizard", "Perçage guidé", start_hole, icon="hole-wizard", from_sketch=True,
                                 enabled_when=lambda s: s.can_start_tool or s.can_start_from_sketch)
         context.bind_action_slot("modeling.hole_wizard", "hole_wizard")
+        context.register_presentation(ThreadFeature, ExtrusionPresentation, label="Filetage / taraudage", icon="sweep", edit_action="edit_feature")
+        context.register_action("thread", "Filetage / taraudage", lambda: context.start_tool(ThreadSession(context.services, self.extrusions)),
+                                enabled_when=lambda s: s.can_start_tool, icon="sweep")
+        context.bind_action_slot("modeling.thread", "thread")
         context.register_presentation(EdgeFeature, ExtrusionPresentation, label="Congé ou chanfrein", icon="fillet", edit_action="edit_feature")
         context.register_presentation(RevolutionFeature,ExtrusionPresentation,label="Révolution",icon="revolve",edit_action="edit_feature")
         context.register_presentation(SweepFeature, ExtrusionPresentation, label="Balayage", icon="sweep", edit_action="edit_feature")

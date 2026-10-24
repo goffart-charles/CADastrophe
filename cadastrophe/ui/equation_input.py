@@ -8,6 +8,13 @@ from ..core.parameters import graph, set_expression
 
 
 class EquationInput:
+    def clear_equation(self):
+        """A deliberate numeric preset replaces the draft driving expression."""
+        self._formula = None
+        self._equation_error = ""
+        if hasattr(self, "equation_button"):
+            self._indicate()
+
     def bind_equations(self, document, key, *, owner=None, unit="length", scale=1.):
         self.equation_document = document
         self.equation_key = key
@@ -261,7 +268,7 @@ def bind_fields(session, fields):
     owner = feature.id if feature is not None else getattr(session, "feature_id", None)
     for key, widget in fields.items():
         scale = widget.units.to_internal(1.) if hasattr(widget, "units") else 1.
-        unit = "angle" if key in ("angle", "roll") else "number" if key == "count" else "length"
+        unit = "angle" if key in ("angle", "roll", "phase") else "number" if key in ("count", "starts") else "length"
         widget.bind_equations(session.document, key, owner=owner, unit=unit, scale=scale)
 
 
