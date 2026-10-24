@@ -1,0 +1,9 @@
+{
+  "id": "cadastrophe.modeling",
+  "name": "Construction paramétrique",
+  "version": "0.6.1",
+  "api_version": 1,
+  "entry_point": "plugin:create_plugin",
+  "enabled_by_default": true,
+  "dependencies": [{"id": "cadastrophe.sketch", "min_version": "0.6.3"}]
+}

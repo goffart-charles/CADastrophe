@@ -1,0 +1,9 @@
+{
+  "id": "fixture.sample",
+  "name": "Extension de validation",
+  "version": "1.0.0",
+  "api_version": 1,
+  "entry_point": "plugin:create_plugin",
+  "dependencies": [],
+  "enabled_by_default": true
+}

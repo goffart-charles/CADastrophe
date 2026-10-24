@@ -1,0 +1,8 @@
+{
+  "id": "cadastrophe.primitives",
+  "name": "Primitives OCCT",
+  "version": "1.1.0",
+  "api_version": 1,
+  "entry_point": "plugin:create_plugin",
+  "enabled_by_default": true
+}

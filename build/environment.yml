@@ -1,0 +1,10 @@
+name: cadastrophe-build
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pythonocc-core=7.9.3
+  - pyside6>=6.8,<7
+  - numpy>=1.26,<3
+  - conda-pack>=0.8,<1
+  - setuptools

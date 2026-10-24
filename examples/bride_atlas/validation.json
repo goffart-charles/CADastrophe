@@ -1,0 +1,49 @@
+{
+  "status": "passed",
+  "native_engine": "OCCT",
+  "shape": "one connected closed solid",
+  "baseline": "bride_atlas.cada",
+  "variant": "bride_atlas_variante.cada",
+  "objects": 33,
+  "features": 18,
+  "sketches": 8,
+  "checks": [
+    {
+      "check": "baseline",
+      "volume_mm3": 135122.71240384376,
+      "features": 18,
+      "plots": 12
+    },
+    {
+      "check": "diameter_4.2_to_5.4",
+      "volume_mm3": 133602.6842143308,
+      "all_12_holes_checked": true
+    },
+    {
+      "check": "plot_height_6_to_10",
+      "volume_mm3": 134916.12127094364,
+      "support_z": 18
+    },
+    {
+      "check": "circular_count_6_to_7",
+      "volume_mm3": 135096.9513440842,
+      "plots": 14,
+      "holes": 14
+    },
+    {
+      "check": "initial_profile_flange_8_to_12",
+      "volume_mm3": 172726.56517446903,
+      "flange_z": 12,
+      "plot_support_z": 22
+    },
+    {
+      "check": "inclined_plane_15_to_22",
+      "volume_mm3": 172716.37261586124,
+      "stable_object_ids": true
+    },
+    {
+      "check": "native_history_edit_and_undo",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "measured_at_utc": "2026-10-19T07:58:59.246840+00:00",
+  "native_engine": "OCCT",
+  "part": "boitier",
+  "features": 3,
+  "baseline": "boitier.cada",
+  "variant": "boitier_variante.cada",
+  "volume_mm3": {
+    "baseline": 55907.176998353076,
+    "variant": 125624.43365953
+  },
+  "seconds": {
+    "build": 0.12260950001655146,
+    "save": 0.01287370000500232,
+    "open_recipes": 0.07544159999815747,
+    "rebuild_no_cache": 0.08696580000105314,
+    "edit_and_rebuild": 0.09893979999469593,
+    "variant_save": 0.014775699994061142,
+    "variant_open_recipes": 0.08113130001584068,
+    "open_native_document": {
+      "boitier": 0.24542819999624044,
+      "boitier_variante": 0.13307260000146925
+    }
+  },
+  "checks": [
+    "one_closed_valid_solid_at_each_prefix",
+    "analytic_volume",
+    "bounds",
+    "material_probes",
+    "moving_face_supports",
+    "stable_ids_and_order",
+    "recipe_only_roundtrip",
+    "upstream_error_and_blocked_consumers",
+    "undo_recovers_error",
+    "native_editor_commit_undo_redo",
+    "native_edited_save_reopen"
+  ]
+}

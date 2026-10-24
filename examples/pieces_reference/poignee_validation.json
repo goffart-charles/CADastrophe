@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "measured_at_utc": "2026-10-19T07:59:06.724837+00:00",
+  "native_engine": "OCCT",
+  "part": "poignee",
+  "features": 4,
+  "baseline": "poignee.cada",
+  "variant": "poignee_variante.cada",
+  "volume_mm3": {
+    "baseline": 30604.247960473815,
+    "variant": 49351.858618356884
+  },
+  "seconds": {
+    "build": 0.11823389999335632,
+    "save": 0.013452299986965954,
+    "open_recipes": 0.10248800000408664,
+    "rebuild_no_cache": 0.09411520001594909,
+    "edit_and_rebuild": 0.09476249999715947,
+    "variant_save": 0.012163000006694347,
+    "variant_open_recipes": 0.10184280000976287,
+    "open_native_document": {
+      "poignee": 0.2337243999936618,
+      "poignee_variante": 0.13340120000066236
+    }
+  },
+  "checks": [
+    "one_closed_valid_solid_at_each_prefix",
+    "analytic_volume",
+    "bounds",
+    "material_probes",
+    "moving_face_supports",
+    "stable_ids_and_order",
+    "recipe_only_roundtrip",
+    "upstream_error_and_blocked_consumers",
+    "undo_recovers_error",
+    "native_editor_commit_undo_redo",
+    "native_edited_save_reopen"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "cadastrophe.curves",
+  "name": "Courbes de construction",
+  "version": "1.0.0",
+  "api_version": 1,
+  "entry_point": "plugin:create_plugin",
+  "enabled_by_default": true,
+  "dependencies": [{"id": "cadastrophe.modeling", "min_version": "0.6.1"}]
+}

@@ -1,0 +1,9 @@
+name: cadastrophe
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pythonocc-core=7.9.3
+  - pyside6>=6.8,<7
+  - pytest>=8
+  - numpy>=1.26,<3

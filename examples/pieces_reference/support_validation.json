@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "measured_at_utc": "2026-10-19T07:59:03.094836+00:00",
+  "native_engine": "OCCT",
+  "part": "support",
+  "features": 4,
+  "baseline": "support.cada",
+  "variant": "support_variante.cada",
+  "volume_mm3": {
+    "baseline": 47547.61065788307,
+    "variant": 61721.415986824606
+  },
+  "seconds": {
+    "build": 0.1318275000085123,
+    "save": 0.013666499988175929,
+    "open_recipes": 0.1159742999880109,
+    "rebuild_no_cache": 0.10681789999944158,
+    "edit_and_rebuild": 0.11820739999529906,
+    "variant_save": 0.012284300028113648,
+    "variant_open_recipes": 0.17317460000049323,
+    "open_native_document": {
+      "support": 0.2379095999931451,
+      "support_variante": 0.14536470000166446
+    }
+  },
+  "checks": [
+    "one_closed_valid_solid_at_each_prefix",
+    "analytic_volume",
+    "bounds",
+    "material_probes",
+    "moving_face_supports",
+    "stable_ids_and_order",
+    "recipe_only_roundtrip",
+    "upstream_error_and_blocked_consumers",
+    "undo_recovers_error",
+    "native_editor_commit_undo_redo",
+    "native_edited_save_reopen"
+  ]
+}

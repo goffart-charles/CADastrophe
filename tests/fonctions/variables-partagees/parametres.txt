@@ -1,0 +1,20 @@
+{
+  "format": "cadastrophe.variables",
+  "schema_version": 1,
+  "id": "1662c61d-0580-4c70-974d-f49ca28a9a20",
+  "length_unit": "mm",
+  "angle_unit": "deg",
+  "variables": [
+    {
+      "id": "fb3f2a2d-4de9-413c-b060-b525fba7b906",
+      "name": "epaisseur",
+      "unit": "length",
+      "expression": {
+        "target": "value",
+        "text": "=20.0",
+        "bindings": [],
+        "scale": 1.0
+      }
+    }
+  ]
+}

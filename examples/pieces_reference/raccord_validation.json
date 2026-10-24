@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "measured_at_utc": "2026-10-19T07:59:09.827590+00:00",
+  "native_engine": "OCCT",
+  "part": "raccord",
+  "features": 3,
+  "baseline": "raccord.cada",
+  "variant": "raccord_variante.cada",
+  "volume_mm3": {
+    "baseline": 24579.82092168654,
+    "variant": 27444.953421760434
+  },
+  "seconds": {
+    "build": 0.08893619998707436,
+    "save": 0.012515699985669926,
+    "open_recipes": 0.07384539998020045,
+    "rebuild_no_cache": 0.0721056999755092,
+    "edit_and_rebuild": 0.0643176999874413,
+    "variant_save": 0.012238299997989088,
+    "variant_open_recipes": 0.07509530000970699,
+    "open_native_document": {
+      "raccord": 0.19957660001819022,
+      "raccord_variante": 0.11333620001096278
+    }
+  },
+  "checks": [
+    "one_closed_valid_solid_at_each_prefix",
+    "analytic_volume",
+    "bounds",
+    "material_probes",
+    "moving_face_supports",
+    "stable_ids_and_order",
+    "recipe_only_roundtrip",
+    "upstream_error_and_blocked_consumers",
+    "undo_recovers_error",
+    "native_editor_commit_undo_redo",
+    "native_edited_save_reopen"
+  ]
+}
