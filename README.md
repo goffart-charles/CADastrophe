@@ -10,6 +10,10 @@ CADastrophe est une application de CAO 3D paramétrique pour le bureau. Elle per
 
 Le projet est en développement. La plateforme actuellement utilisée pour la validation est **Windows**.
 
+## Téléchargement
+
+[**Télécharger la dernière version de CADastrophe**](https://github.com/goffart-charles/CADastrophe/releases/latest)
+
 ![Bride Atlas, pièce paramétrique affichée dans le viewport de CADastrophe](examples/bride_atlas/bride_atlas-viewport.png)
 
 *La [Bride Atlas](examples/bride_atlas/README.md), un exemple natif fourni avec le projet.*
