@@ -100,6 +100,7 @@ Des projets modifiables sont inclus pour essayer la reconstruction paramétrique
 
 - [Bride Atlas](examples/bride_atlas/README.md) : révolutions, répétitions, symétries et finitions, avec une variante de la pièce.
 - [Pièces de référence](examples/pieces_reference/README.md) : boîtier, support mécanique, poignée et raccord.
+- Fixations taraudées : [équerre usinée](tests/pieces/equerre-fixation/04-fixations-taraudees.cada) et [boîtier à quatre plots](tests/pieces/boitier/04-fixations-taraudees.cada), avec avant-trous métriques, filets réels et trois configurations.
 - [Exemples par fonction](tests/fonctions/) : petits projets natifs pour explorer les outils et leurs paramètres.
 
 Ouvrir les fichiers `.cada` depuis **Fichier → Ouvrir**, puis modifier une esquisse, une cote ou une fonction de l’arbre.

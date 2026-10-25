@@ -71,6 +71,24 @@ def parse_workers(arguments):
     return options.test_workers
 
 
+def serial_batches(nodeids, costs, *, maximum_cost=200.):
+    """Bound shared-state lots without splitting modules or running them together."""
+    modules = defaultdict(list)
+    for nodeid in nodeids:
+        modules[nodeid.split("::", 1)[0]].append(nodeid)
+    batches, current, load = [], [], 0.
+    for path, selected in modules.items():
+        cost = costs[path]
+        if current and load + cost > maximum_cost:
+            batches.append(current)
+            current, load = [], 0.
+        current.extend(selected)
+        load += cost
+    if current:
+        batches.append(current)
+    return batches
+
+
 def run_parallel(script, *, workers=4):
     import pytest
     started = time.monotonic()
@@ -103,7 +121,10 @@ def run_parallel(script, *, workers=4):
         codes = [future.result() for future in futures]
     if serial:
         print("Phase isolee : tests utilisant le presse-papiers.", flush=True)
-        codes.append(execute("serial", serial))
+        module_costs = {nodeids[0].split("::", 1)[0]: collection.costs[path]
+                        for path, nodeids in collection.modules.items()}
+        for index, batch in enumerate(serial_batches(serial, module_costs), 1):
+            codes.append(execute(f"serial-{index}", batch))
     code = next((code for code in codes if code), 0)
     print(f"Tests termines en {time.monotonic()-started:.2f} s ; code {code}.", flush=True)
     return code
