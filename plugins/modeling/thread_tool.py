@@ -14,6 +14,7 @@ from cadastrophe.core.operation_model import GeometryReference
 from cadastrophe.core.thread_model import ThreadParameters, thread_choices, apply_thread_choice
 from cadastrophe.core.thread_geometry import cylindrical_support
 from .recipe_session import RecipePreview, adopted, unique_name
+from .selection_field import SelectionField
 
 
 class ThreadSession(RecipePreview):
@@ -70,7 +71,12 @@ class ThreadSession(RecipePreview):
                     self._supports[selection] = (cylinder, v0, v1, internal)
             except (ValueError, RuntimeError):
                 continue
-        form.addRow("Support", self.support)
+        self.face_field = SelectionField("Choisir la paroi du trou ou la tige dans la vue 3D")
+        self.face_field.setObjectName("threadFaceSelection")
+        self.face_field.activated.connect(lambda: self.surface.focus() if self.surface else None)
+        self.face_field.cleared.connect(lambda: self.support.setCurrentIndex(0))
+        form.addRow("Face cylindrique", self.face_field)
+        form.addRow("Ou choisir dans la liste", self.support)
         self.kind_label = QLabel()
         form.addRow(self.kind_label)
         self.catalog_size = QComboBox()
@@ -138,8 +144,10 @@ class ThreadSession(RecipePreview):
         self.catalog_size.currentIndexChanged.connect(self.select_catalog)
         index = self.support.findData(self.face_ref) if self.face_ref else -1
         if index < 0 and not self.feature:
-            for item in self.services.selection_items:
-                if item.topology == "Face" and item.shape is not None:
+            selected = self.services.selection_items
+            for item in selected if len(selected) == 1 else ():
+                owner = self.document.objects.get(item.object_id)
+                if item.topology == "Face" and item.shape is not None and owner and owner.revision == item.revision:
                     for i in range(1, self.support.count()):
                         ref = self.support.itemData(i)
                         if ref.object_id == item.object_id:
@@ -150,8 +158,6 @@ class ThreadSession(RecipePreview):
                                     break
                             except ValueError:
                                 pass
-            if index < 0 and self.support.count() == 2:
-                index = 1
         if self.feature and index < 0:
             self.support.addItem("Support enregistré · à réparer", self.face_ref)
             index = self.support.count() - 1
@@ -163,6 +169,8 @@ class ThreadSession(RecipePreview):
     def select_support(self, *_args, initial=False):
         self._pick_error = ""
         self.face_ref = self.support.currentData()
+        self.face_field.set_value(self.face_ref, self.support.currentText() if self.face_ref else "")
+        self.face_field.set_active(self.face_ref is None)
         if self.face_ref is None:
             self.kind_label.setText("Choisissez un trou ou une tige cylindrique.")
             self.changed()
@@ -251,7 +259,7 @@ class ThreadSession(RecipePreview):
         if self._pick_error:
             raise ValueError(self._pick_error)
         if self.face_ref is None:
-            raise ValueError("Choisissez une face cylindrique.")
+            return None
         values = {}
         for key, control in self.fields.items():
             if not control.hasAcceptableInput():

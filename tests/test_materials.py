@@ -65,6 +65,54 @@ def test_material_is_atomic_undoable_and_survives_file_and_clipboard(tmp_path):
     assert document.objects[obj.id].material == material
 
 
+def test_mass_resolves_recipe_and_profile_to_body_and_material_survives_rebuild(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from cadastrophe.core.documents import DocumentManager
+    from cadastrophe.plugin_api import ApplicationServices
+    from plugins.measurements.panel import MeasurementsPanel
+    from test_parametric_operations import system, profile, append
+    from examples.parametric_example import registry
+    app = QApplication.instance() or QApplication([])
+    doc, service = system()
+    doc.equation_evaluator = service.evaluator
+    sketch = profile(doc, points=((0, 0), (10, 0), (10, 20), (0, 20)))
+    owner, feature, _ = append(doc, service, sketch)
+    manager = DocumentManager()
+    manager.add(doc)
+    services = ApplicationServices(manager)
+    panel = MeasurementsPanel(services, None)
+    try:
+        for selected in (sketch.id, feature.id):
+            doc.select_objects((selected,))
+            panel.set_mode('mass')
+            assert doc.selected_ids == (owner.id,)
+            assert panel.material_targets() == (owner.id,)
+        panel.material_name.setText('Alliage')
+        panel.density.setValue(2700.)
+        panel.assign_material()
+        assert doc.objects[owner.id].material == Material('Alliage', 2700.)
+        assert panel.last_result.value == pytest.approx(5.4)
+        doc.update_construction((replace(feature, parameters=replace(feature.parameters, depth=20.)),))
+        from cadastrophe.core.body_history import evaluate_body
+        from cadastrophe.core.feature_model import ResultStatus
+        result = evaluate_body(doc, owner.id, service.evaluator(doc), reuse=True)
+        assert result.status is ResultStatus.READY, result.message
+        doc.select_objects((owner.id,))
+        panel.refresh()
+        assert panel.last_result is not None, panel.detail.text()
+        assert panel.last_result.value == pytest.approx(10.8)
+        assert doc.objects[owner.id].material == Material('Alliage', 2700.)
+        path = tmp_path/'materiau-parametrique.cada'
+        save_document(doc, path, registry=registry(service))
+        loaded = load_document(path, registry=registry(service))
+        assert loaded.objects[owner.id].material == Material('Alliage', 2700.)
+    finally:
+        panel.timer.stop()
+        panel.deleteLater()
+        manager.deleteLater()
+        app.processEvents()
+
+
 def test_schema6_migration_preserves_breps_and_ids_without_inventing_material(tmp_path):
     document = new_document()
     obj = body(document)

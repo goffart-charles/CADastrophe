@@ -1,4 +1,5 @@
 """Configuration controls share the window action registry and document commands."""
+from .feedback import set_feedback
 from PySide6.QtCore import Qt, QSignalBlocker
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QComboBox, QListWidget, QListWidgetItem, QToolButton, QGridLayout, QInputDialog,
@@ -229,7 +230,7 @@ class ConfigurationsPanel(QWidget):
                                 completed(result)
                     def failed(error):
                         if self.document is document:
-                            self.message.setText(str(error))
+                            set_feedback(self.message, str(error))
                     return self.services.run_computation(value, "Calcul des configurations",
                         completed=done, failed=failed,
                         cancelled=lambda: failed("Calcul annulé ; configuration conservée."))
@@ -240,7 +241,7 @@ class ConfigurationsPanel(QWidget):
                 completed(value)
             return value
         except (ValueError, RuntimeError) as exc:
-            self.message.setText(str(exc))
+            set_feedback(self.message, str(exc))
             return None
 
     def ask_create(self, *, duplicate=False):
@@ -271,7 +272,7 @@ class ConfigurationsPanel(QWidget):
                     raise ValueError("Saisissez active ou inactive.")
                 value = text.strip().casefold() == "active"
             else:
-                value = Expression(target.partition(":")[2] or "value", text.strip()) if text.strip().startswith("=") else float(text)
+                value = Expression(target.partition(":")[2] or "value", text.strip()) if text.strip().startswith("=") else float(text.replace(',', '.'))
             return operations.set_override(self.document, self.selected_id(), target, value, incremental=True)
         self.run(apply)
 
@@ -287,5 +288,6 @@ class ConfigurationsPanel(QWidget):
     def validate(self):
         def completed(reports):
             failures = [self.document.configuration_state.configuration(key).name+" : "+text for key, text in reports.items() if text]
-            self.message.setText("\n".join(failures) if failures else "Toutes les configurations sont valides.")
+            set_feedback(self.message, "\n".join(failures) if failures else "Toutes les configurations sont valides.",
+                         "error" if failures else "info")
         return self.run(lambda: operations.validate_all(self.document, incremental=True), completed=completed)

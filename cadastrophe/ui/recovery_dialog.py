@@ -1,4 +1,5 @@
 """Review recovery copies without writing to their original project paths."""
+from .feedback import ErrorLabel, set_feedback
 from datetime import datetime
 
 from PySide6.QtCore import Qt
@@ -28,7 +29,7 @@ class RecoveryDialog(QDialog):
         self.list.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.list.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.list, 1)
-        self.error = QLabel()
+        self.error = ErrorLabel()
         self.error.setTextFormat(Qt.TextFormat.PlainText)
         self.error.setWordWrap(True)
         layout.addWidget(self.error)
@@ -55,7 +56,7 @@ class RecoveryDialog(QDialog):
         self.list.setCurrentItem(self.list.topLevelItem(0))
         self.update_buttons()
         if self.list.topLevelItemCount() == 0:
-            self.error.setText("Aucune copie de récupération disponible. Les sessions encore ouvertes sont exclues.")
+            set_feedback(self.error, "Aucune copie de récupération disponible. Les sessions encore ouvertes sont exclues.", "info")
 
     def selected(self):
         row = self.list.currentItem()

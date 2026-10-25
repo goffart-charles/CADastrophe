@@ -1,4 +1,5 @@
 """Compact entity list and buffered, explicit parameter apply; no live undo spam."""
+from cadastrophe.plugin_api import ErrorLabel, set_feedback
 from dataclasses import replace
 from math import degrees, radians, isfinite
 
@@ -66,7 +67,7 @@ class EntityPanel(QWidget):
         layout.addWidget(self.apply)
         self.group.hide()
         self.apply.hide()
-        self.message = QLabel()
+        self.message = ErrorLabel()
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
         self.message.hide()
@@ -127,7 +128,7 @@ class EntityPanel(QWidget):
         self.apply.setEnabled(active and target is not None and bool(self.fields) and not generated)
         self.message.setVisible(generated or bool(self.message.text()))
         if generated:
-            self.message.setText("Occurrence pilotée par un motif. Ses paramètres sont des mesures ; utilisez Modifier le motif ou Dissocier le motif.")
+            set_feedback(self.message, "Occurrence pilotée par un motif. Ses paramètres sont des mesures ; utilisez Modifier le motif ou Dissocier le motif.", "info")
 
     def _edit_pattern(self):
         key = self.patterns.currentData()

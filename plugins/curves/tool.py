@@ -1,4 +1,5 @@
 """Detached native previews, atomic publication and common undo/redo."""
+from cadastrophe.plugin_api import DecimalSpinBox
 from dataclasses import replace
 
 from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QLineEdit, QDoubleSpinBox, QCheckBox, QPlainTextEdit, QLabel
@@ -83,7 +84,7 @@ class CurveSession:
 
     @staticmethod
     def number(low, high, value, changed, suffix=''):
-        field = QDoubleSpinBox()
+        field = DecimalSpinBox()
         field.setRange(low, high)
         field.setDecimals(4)
         field.setValue(value)

@@ -28,9 +28,11 @@ def test_corner_tool_collects_edges_after_launch_and_applies_atomically(system, 
     assert len(session.interaction.selected) == 2
     panel.size.setValue(100.)
     assert not panel.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled()
+    assert panel.error.property('severity') == 'error'
     assert doc.objects[session.object_id].sketch == before and doc.history.count == count
     panel.size.setValue(3.)
     assert panel.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled(), panel.error.text()
+    assert panel.error.property('severity') == 'info'
     assert doc.objects[session.object_id].sketch == before
     # Selected sides are picked through their trimmed preview as well.
     QTest.mouseClick(w.viewport, Qt.MouseButton.LeftButton, pos=screen(system, (-10, -20)))

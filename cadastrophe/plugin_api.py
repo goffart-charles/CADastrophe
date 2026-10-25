@@ -19,6 +19,8 @@ from .core.materials import Material
 from .core.variable_files import VariableSource, bind_library, export_variables, reload_variables
 from .core.curve_model import CurveObject, CurveParameters
 from .ui.length_input import LengthSpinBox
+from .ui.numeric_input import DecimalSpinBox
+from .ui.feedback import ErrorLabel, set_feedback
 from .ui.equation_input import EquationSpinBox, EquationIntSpinBox, bind_fields, equation_recipe
 from .core.hole_model import HoleParameters
 from .core.feature_objects import HoleFeature
@@ -42,6 +44,7 @@ class ApplicationServices(QObject):
     state_changed = Signal()
     selection_changed = Signal(object)  # transient tuple of SelectionItem, including subshapes
     message = Signal(str)
+    problem = Signal(str)
 
     def __init__(self, documents):
         super().__init__(documents)
@@ -49,6 +52,7 @@ class ApplicationServices(QObject):
         self._tools = None
         self._display_units = DisplayUnits()
         self._selection_provider = None
+        self._selection_setter = None
         self._clipboard = None
         self._file_dialogs = None
         self._providers = {}
@@ -143,6 +147,23 @@ class ApplicationServices(QObject):
         return tuple(SelectionItem(key, "Plan" if document.objects[key].plane else "Objet",
                                    document.objects[key].shape, document.objects[key].revision)
                      for key in document.selected_ids)
+
+    def select_objects(self, object_ids):
+        """Select whole objects through the common native/tree selection authority."""
+        if not self.editable:
+            raise RuntimeError("Terminez l’opération en cours avant de changer la sélection.")
+        keys = tuple(dict.fromkeys(object_ids))
+        if any(key not in self.active_document.objects for key in keys):
+            raise ValueError("Objet sélectionné absent du document.")
+        if self._selection_setter is not None:
+            self._selection_setter(keys)
+        else:
+            self.active_document.select_objects(keys)
+
+    def report_problem(self, text):
+        """Publish a problem to existing message observers and the visible error UI."""
+        self.message.emit(text)
+        self.problem.emit(text)
 
 
 @dataclass

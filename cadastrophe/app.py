@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         self.computations = Computations(self)
         self.services._computations = self.computations
         self.services._file_dialogs = self.file_dialogs
-        self.file_dialogs.warning.connect(self.services.message.emit)
+        self.file_dialogs.warning.connect(self.services.report_problem)
         self.services._display_units = self.preferences.units
         self.object_types = ObjectTypeRegistry()
         self.object_presentations = PresentationRegistry(self)
@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
         initial_document = self.documents.add(new_document())
         self.viewport = CadViewport(self, document=initial_document, presentation_registry=self.object_presentations)
         self.services._selection_provider = self._selection_items
+        self.services._selection_setter = self.tree_selection_changed
         self.viewport.apply_preferences(self.preferences)
         self._views = {initial_document.id: self.viewport}
         self._document_number = 0
@@ -142,7 +143,8 @@ class MainWindow(QMainWindow):
         self.tree_adapter.selection_requested.connect(self.tree_selection_changed)
         self.tree_adapter.rename_requested.connect(self.rename_object)
         self.tree.itemDoubleClicked.connect(self.activate_tree_object)
-        self.hint = QLabel("Initialisation de la vue 3D…")
+        from .ui.feedback import FeedbackLabel, set_feedback
+        self.hint = FeedbackLabel("Initialisation de la vue 3D…")
         self.hint.setMinimumWidth(0)
         self.hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.coords = QLabel("")
@@ -167,7 +169,7 @@ class MainWindow(QMainWindow):
         self.tool_sessions.changed.connect(self.tool_host.refresh)
         self.tool_sessions.changed.connect(self.update_action_states)
         self.tool_sessions.changed.connect(self.services.state_changed.emit)
-        self.tool_sessions.error.connect(self.services.message.emit)
+        self.tool_sessions.error.connect(self.services.report_problem)
         self.tree_adapter.state_changed.connect(self.document_state_changed)
         self.tree_adapter.bind(self.viewport.document)
         self._history = None
@@ -183,25 +185,26 @@ class MainWindow(QMainWindow):
         self.document_tabs.tabCloseRequested.connect(self._tab_closed)
         self._documents_changed()
         self.services.message.connect(self.hint.setText)
+        self.services.problem.connect(lambda text: set_feedback(self.hint, text))
         plugin_directory = Path(plugin_directory) if plugin_directory is not None else Path(__file__).resolve().parent.parent / "plugins"
         host = PluginUiHost(self.command_registry, self.command_manager, self.manager_pane, self.plugins_menu,
                             self.object_presentations, status_bar=self.statusBar())
         self.plugins = PluginManager(plugin_directory, self.services, host, self.object_types, self.documents)
         self.plugins.startup()
         self.recovery = RecoveryService(self.documents, self.object_types, recovery_directory, self)
-        self.recovery.message.connect(self.hint.setText)
+        self.recovery.message.connect(self.services.report_problem)
         self.recovery.configure(self.preferences.autosave_enabled, self.preferences.autosave_interval_minutes)
         try:
             self.command_registry.set_shortcuts_batch(self._preference_bindings(self.preferences))
         except ValueError as exc:
-            self.hint.setText(f"Raccourcis non appliqués : {exc}")
+            self.services.report_problem(f"Raccourcis non appliqués : {exc}")
             log.warning("Raccourcis de préférences : %s", exc)
         self.restore_layout(self._saved_layout)
         self.file_dialogs.changed.connect(self._save_file_directories)
         if self.file_dialogs.startup_warning:
-            self.hint.setText(self.file_dialogs.startup_warning)
+            self.services.report_problem(self.file_dialogs.startup_warning)
         if self.preference_store.error:
-            self.hint.setText("Préférences non chargées : " + self.preference_store.error)
+            self.services.report_problem("Préférences non chargées : " + self.preference_store.error)
             log.warning("Préférences %s : %s", self.preference_store.path, self.preference_store.error)
         self.update_action_states()
 
@@ -473,7 +476,7 @@ class MainWindow(QMainWindow):
             self.preference_store.save(self.preferences,self.capture_layout())
         except (ValueError,OSError) as error:
             log.warning("Dossiers de fichiers non mémorisés : %s",error)
-            self.services.message.emit("Le dernier dossier est conservé pour cette session, mais sa préférence n’a pas pu être enregistrée. "+file_error_text(error))
+            self.services.report_problem("Le dernier dossier est conservé pour cette session, mais sa préférence n’a pas pu être enregistrée. "+file_error_text(error))
 
     def restore_layout(self, layout):
         if layout.get("geometry"):
@@ -497,7 +500,7 @@ class MainWindow(QMainWindow):
         viewport.coordinates_changed.connect(lambda text: self.coords.setText(text) if viewport is self.viewport else None)
         viewport.selection_changed.connect(lambda items: self.selection_changed(items) if viewport is self.viewport else None)
         viewport.failed.connect(lambda text: self.initialization_failed(text) if viewport is self.viewport else None)
-        viewport.presentation_error.connect(self.services.message.emit)
+        viewport.presentation_error.connect(self.services.report_problem)
         viewport.ready.connect(lambda: self.update_action_states() if viewport is self.viewport else None)
         viewport.document_changed.connect(partial(self._viewport_document_changed, viewport))
         viewport.document_load_guard = partial(self._validate_view_document, viewport)
@@ -778,7 +781,7 @@ class MainWindow(QMainWindow):
         return self.command_registry.adopt(command_id, action, "Fenêtre")
 
     def initialization_failed(self, message):
-        self.hint.setText("Échec d'initialisation du viewport")
+        self.services.report_problem("Échec d'initialisation du viewport")
         QMessageBox.critical(self, "Initialisation de la vue 3D", message)
 
     def rebuild_tree(self):
@@ -1005,7 +1008,7 @@ class MainWindow(QMainWindow):
             count = self.object_clipboard.copy(self.viewport.document, self.selected_ids, cut=cut)
             self.hint.setText(f"{count} objet(s) {'coupé(s)' if cut else 'copié(s)'} dans le presse-papiers.")
         except ClipboardError as exc:
-            self.hint.setText(str(exc))
+            self.services.report_problem(str(exc))
         finally:
             # Native clipboard notifications may arrive on the next Qt turn.
             self.update_action_states()
@@ -1020,7 +1023,7 @@ class MainWindow(QMainWindow):
             ids = self.object_clipboard.paste(self.viewport.document)
             self.hint.setText(f"{len(ids)} objet(s) collé(s). " + self.object_clipboard.last_message)
         except ClipboardError as exc:
-            self.hint.setText(str(exc))
+            self.services.report_problem(str(exc))
 
     def undo_document(self):
         self.viewport.document.history.undo()
@@ -1043,7 +1046,7 @@ class MainWindow(QMainWindow):
             self.viewport.document.rename(object_id, name)
         except (ValueError, RuntimeError):
             self.tree_adapter.refresh(object_id)
-            self.hint.setText("Renommage refusé : nom vide ou opération documentaire en cours.")
+            self.services.report_problem("Renommage refusé : nom vide ou opération documentaire en cours.")
 
     def normal_to_selected(self):
         if self.tool_sessions.editing:
@@ -1187,7 +1190,7 @@ def run():
         app.setApplicationName("CADastrophe")
         window = MainWindow(preferences_path=default_preferences_path(),
                             recovery_directory=default_recovery_directory())
-        diagnostics.notify = window.services.message.emit
+        diagnostics.notify = window.services.report_problem
         window.show()
         QTimer.singleShot(0, partial(window.manage_recovery, only_if_available=True))
         return app.exec()

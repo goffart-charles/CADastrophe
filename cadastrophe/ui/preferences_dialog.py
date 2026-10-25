@@ -1,4 +1,6 @@
 """Edit a draft; persist/apply only after full validation, including shortcuts."""
+from .feedback import ErrorLabel
+from .numeric_input import DecimalSpinBox
 from dataclasses import asdict
 
 from PySide6.QtCore import Qt
@@ -32,7 +34,7 @@ class PreferencesDialog(QDialog):
         self.decimals = QSpinBox()
         self.decimals.setRange(0, 6)
         form.addRow("Décimales affichées", self.decimals)
-        self.rotation_speed, self.zoom_speed = QDoubleSpinBox(), QDoubleSpinBox()
+        self.rotation_speed, self.zoom_speed = DecimalSpinBox(), DecimalSpinBox()
         for field in (self.rotation_speed, self.zoom_speed):
             field.setRange(0.25, 4.)
             field.setSingleStep(0.25)
@@ -51,7 +53,7 @@ class PreferencesDialog(QDialog):
         self.sketch_snapping = QCheckBox("Extrémités, milieux, centres, origine et intersections")
         self.sketch_inference = QCheckBox("Inférences horizontales et verticales")
         self.sketch_grid = QCheckBox("Accrochage à la grille")
-        self.sketch_grid_step = QDoubleSpinBox()
+        self.sketch_grid_step = DecimalSpinBox()
         self.sketch_grid_step.setRange(.001, 1_000_000)
         self.sketch_grid_step.setDecimals(3)
         self.sketch_grid_step.setSuffix(" mm")
@@ -106,7 +108,7 @@ class PreferencesDialog(QDialog):
         self.shortcuts.setColumnWidth(1, 230)
         column.addWidget(self.shortcuts)
         self.tabs.addTab(shortcuts, "Raccourcis")
-        self.error = QLabel()
+        self.error = ErrorLabel()
         self.error.setWordWrap(True)
         layout.addWidget(self.error)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.RestoreDefaults)

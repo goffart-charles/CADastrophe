@@ -125,6 +125,33 @@ def test_material_assignment_updates_native_mass_and_undo_preserves_shape(window
     assert widget.last_result.value == pytest.approx(80.)
 
 
+@pytest.mark.parametrize('world', ((-55., -55., 40.), (-55., -35., 40.)))
+def test_mass_promotes_native_edge_or_face_to_whole_body_and_material_persists(window, tmp_path, world):
+    doc = window.viewport.document
+    pick(window, world)
+    selected, = window.services.selection_items
+    assert selected.topology in {'Face', 'Arête'}
+    original = doc.objects[selected.object_id]
+    doc.history.clear()
+    assert window.command_registry.execute(PREFIX+'mass')
+    widget = panel(window)
+    settle(window)
+    promoted, = window.services.selection_items
+    assert promoted.topology == 'Objet' and promoted.shape.IsSame(original.shape)
+    assert not doc.history.count and widget.apply_material.isEnabled() is False
+    widget.material_name.setText('Matériau permanent')
+    widget.density.setValue(1250.)
+    QTest.mouseClick(widget.apply_material, Qt.MouseButton.LeftButton)
+    settle(window)
+    assert widget.last_result.value == pytest.approx(80.)
+    assert doc.history.count == 1
+    path = tmp_path/'corps-avec-materiau.cada'
+    assert window.save_document(path=path) and window.close_document()
+    restored = window.open_document(path)
+    assert restored.objects[original.id].material.name == 'Matériau permanent'
+    assert restored.objects[original.id].material.density_kg_m3 == 1250.
+
+
 def test_actual_two_faces_of_same_parent_emit_topological_selection_and_measure_angle(window):
     document, viewport = window.viewport.document, window.viewport
     events = []

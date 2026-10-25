@@ -1,4 +1,6 @@
 """Atomic sketch corner trimming, fillets and chamfers with explicit parameters."""
+from cadastrophe.plugin_api import ErrorLabel, set_feedback
+from cadastrophe.plugin_api import DecimalSpinBox
 from dataclasses import replace
 from math import acos, atan2, cos, hypot, pi, sin, tan, radians
 
@@ -116,7 +118,7 @@ class CornerPanel(QGroupBox):
         form.addRow("Rayon" if mode == "fillet" else "Distance 1", self.size)
         if mode == "chamfer":
             form.addRow("Distance 2", self.size2)
-        self.angle = QDoubleSpinBox()
+        self.angle = DecimalSpinBox()
         self.angle.setRange(.01, 89.99)
         self.angle.setValue(45.)
         self.angle.setSuffix("°")
@@ -132,7 +134,7 @@ class CornerPanel(QGroupBox):
         if mode == "chamfer":
             form.addRow(self.flip)
         layout.addLayout(form)
-        self.error = QLabel()
+        self.error = ErrorLabel()
         self.error.setWordWrap(True)
         layout.addWidget(self.error)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -181,7 +183,7 @@ class CornerPanel(QGroupBox):
             preview = sketch.independent(e for e in sketch.entities if e.id in shown)
             self.session.surface.presentation.set_state(hidden_ids=selected if self.trim.isChecked() else ())
             self.preview.update(replace(obj, sketch=preview), editing=True)
-            self.error.setText("Cliquer un côté sélectionné pour le retirer. Entrée : appliquer · Échap : fermer.")
+            set_feedback(self.error, "Cliquer un côté sélectionné pour le retirer. Entrée : appliquer · Échap : fermer.", "info")
             valid = True
         except (ValueError, RuntimeError) as exc:
             self.error.setText(str(exc))

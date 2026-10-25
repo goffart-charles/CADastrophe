@@ -94,19 +94,31 @@ def test_holes_ui_face_support_through_all_reverse_and_invalid_atomic(extrusion_
     tool.body.setCurrentIndex(tool.body.findData(body.id))
     tool.condition.setCurrentIndex(tool.condition.findData("through_all"))
     w.tool_sessions.update_preview()
-    assert not w.tool_sessions.can_commit  # Points away from the upper face.
+    assert tool.reverse.isChecked()  # The suggested direction enters the upper face.
+    assert w.tool_sessions.can_commit, w.tool_sessions.message
+    tool.reverse.setChecked(False)
+    w.tool_sessions.update_preview()
+    assert not w.tool_sessions.can_commit
+    assert w.tool_host.panel.status.property('severity') == 'error'
     tool.reverse.setChecked(True)
     w.tool_sessions.update_preview()
     assert w.tool_sessions.can_commit, w.tool_sessions.message
+    assert w.tool_host.panel.status.property('severity') == 'info'
     assert volume(w.tool_sessions.preview_object.shape) == pytest.approx(volume(body.shape) - pi*9*20)
     assert dict(doc.objects) == before and doc.history.count == 0
     assert w.tool_sessions.commit(), w.tool_sessions.message
+    created = next(o for o in doc.objects.values() if isinstance(o, HoleFeature))
+    assert created.parameters.reversed
     doc.history.undo()
     assert set(doc.objects) == set(before)
     assert doc.objects[body.id].features == before[body.id].features
     assert volume(doc.objects[body.id].shape) == pytest.approx(volume(body.shape))
     assert doc.objects[sketch.id].sketch == sketch.sketch
     doc.history.redo()
+    from cadastrophe.core.body_history import body_result
+    from cadastrophe.core.feature_model import ResultStatus
+    state = body_result(doc, body.id)
+    assert state.status is ResultStatus.READY, (state.message, doc.objects[created.id].parameters, created.parameters)
     assert BRepCheck_Analyzer(doc.objects[body.id].shape).IsValid()
 
 

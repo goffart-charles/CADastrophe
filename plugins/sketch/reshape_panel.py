@@ -1,4 +1,5 @@
 """Sketch text, reshape and copy tools in the host's existing edit session."""
+from cadastrophe.plugin_api import ErrorLabel, set_feedback
 from dataclasses import replace
 from math import radians
 
@@ -115,7 +116,7 @@ class ReshapePanel(QGroupBox):
         help_label = QLabel(help_text)
         help_label.setWordWrap(True)
         layout.addWidget(help_label)
-        self.error = QLabel()
+        self.error = ErrorLabel()
         self.error.setWordWrap(True)
         layout.addWidget(self.error)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -172,12 +173,12 @@ class ReshapePanel(QGroupBox):
 
     def set_pick_mode(self, mode):
         self._pick_mode = mode
-        self.error.setText("Cliquer un segment pour définir l’axe." if mode == "axis" else "Cliquer un point dans la vue.")
+        set_feedback(self.error, "Cliquer un segment pour définir l’axe." if mode == "axis" else "Cliquer un point dans la vue.", "info")
         self.session.surface.focus()
 
     def collect_entities(self):
         self.set_pick_mode("entities")
-        self.error.setText("Cliquer les entités sources ; un second clic les retire.")
+        set_feedback(self.error, "Cliquer les entités sources ; un second clic les retire.", "info")
 
     def candidate(self):
         from .commands import _current
@@ -260,7 +261,7 @@ class ReshapePanel(QGroupBox):
                 self.session.surface.presentation.set_state(hidden_ids=hidden)
             self.preview.update(replace(original, sketch=candidate.independent(shown)), editing=True)
             self._candidate = (original, candidate)
-            self.error.setText("Aperçu prêt. Entrée : appliquer · Échap : fermer.")
+            set_feedback(self.error, "Aperçu prêt. Entrée : appliquer · Échap : fermer.", "info")
         except Exception as exc:
             self.error.setText(str(exc) if isinstance(exc, ValueError) else "Impossible de construire cet aperçu avec ces paramètres.")
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(self._candidate is not None)

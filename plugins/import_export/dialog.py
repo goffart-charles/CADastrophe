@@ -1,4 +1,5 @@
 """Nonmodal exchange UI; only completed imports enter the common undo history."""
+from cadastrophe.plugin_api import DecimalSpinBox, set_feedback
 import json
 import logging
 import os
@@ -98,7 +99,7 @@ class ExchangeDialog(QDialog):
             self.custom_options = QWidget()
             custom_form = QFormLayout(self.custom_options)
             custom_form.setContentsMargins(0,0,0,0)
-            self.deflection,self.angular = QDoubleSpinBox(),QDoubleSpinBox()
+            self.deflection,self.angular = DecimalSpinBox(),DecimalSpinBox()
             self.deflection.setDecimals(6)
             self.deflection.setRange(.000001,10000)
             self.deflection.setValue(.1)
@@ -246,7 +247,7 @@ class ExchangeDialog(QDialog):
             log.info("STEP %s démarré ; document=%s ; fichier=%s", self.mode, self.document.id, self.target)
             self._set_busy(True)
             self.progress.setValue(0)
-            self.status.setText("Préparation de l’échange…")
+            set_feedback(self.status, "Préparation de l’échange…", "info")
             if self.mode == "export":
                 self.timer.start(0)
             else:
@@ -382,7 +383,7 @@ class ExchangeDialog(QDialog):
         self._running = False
         self.timer.stop()
         self.error_message = message
-        self.status.setText("Échec : " + message)
+        set_feedback(self.status, "Échec : " + message)
         self._set_busy(False)
         self._cleanup_files()
 

@@ -1,4 +1,5 @@
 """Explicit persistent relations and driving dimensions in the parameter panel."""
+from cadastrophe.plugin_api import ErrorLabel
 from dataclasses import replace
 from math import hypot, degrees
 
@@ -145,7 +146,7 @@ class ConstraintPanel(QWidget):
         self.link.setToolTip("Créer explicitement des coïncidences entre les extrémités déjà confondues de cette esquisse.")
         self.link.clicked.connect(self.link_common_points)
         layout.addWidget(self.link)
-        self.message = QLabel()
+        self.message = ErrorLabel()
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
         self.message.hide()

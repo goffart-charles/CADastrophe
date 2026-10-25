@@ -143,7 +143,7 @@ class ToolUiHost(QObject):
     def refresh(self):
         sessions = self.window.tool_sessions
         if self.panel is not None:
-            self.panel.set_validation(sessions.can_commit, sessions.message)
+            self.panel.set_validation(sessions.can_commit, sessions.message, sessions.message_level)
 
     def eventFilter(self, watched, event):
         kind = event.type()

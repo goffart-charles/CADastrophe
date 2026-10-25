@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QToolButton,
     QLabel, QDialogButtonBox, QScrollArea, QFrame, QSizePolicy)
 from .icons import icon
 from .themes import theme_tokens
+from .feedback import set_feedback
 
 
 class PropertySection(QWidget):
@@ -80,9 +81,9 @@ class PropertyPanel(QWidget):
     def set_editor(self, editor):
         self.sections.insertWidget(0, editor)
 
-    def set_validation(self, enabled, message):
+    def set_validation(self, enabled, message, severity="info"):
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(enabled)
-        self.status.setText(message)
+        set_feedback(self.status, message, severity)
 
     def add_section(self, title: str) -> PropertySection:
         section = PropertySection(title)

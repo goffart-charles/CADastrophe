@@ -26,6 +26,7 @@ class ThemeTokens:
     inactive_selected: str = "#e5eeeb"
     positive: str = "#327b4b"
     negative: str = "#b44444"
+    warning: str = "#8d5700"
     font_family: str = "Segoe UI"
     font_points: int = 9
     space: int = 4
@@ -44,7 +45,7 @@ LIGHT = ThemeTokens()
 DARK = replace(LIGHT, window="#18272d", panel="#203238", strip="#1b2d33", text="#e4eeeb",
                muted="#a5bcba", disabled="#819693", border="#526e71", separator="#365057",
                accent="#79d6cf", hover="#2b484e", pressed="#315d63", selected="#31575b",
-               selected_text="#dcf8ef", inactive_selected="#30474c", positive="#89d6a1", negative="#ffad94")
+               selected_text="#dcf8ef", inactive_selected="#30474c", positive="#89d6a1", negative="#ffad94", warning="#ffd080")
 
 
 def theme_tokens() -> ThemeTokens:
@@ -75,6 +76,10 @@ def stylesheet(t: ThemeTokens) -> str:
     down = (ASSETS / f"spin-down-{arrow_style}.svg").as_posix()
     return f"""
 QMainWindow, QDialog {{ background: {t.window}; }}
+QLabel[severity="error"] {{ color: {t.negative}; background: {t.panel};
+    border-left: 3px solid {t.negative}; padding: 6px; font-weight: 600; }}
+QLabel[severity="warning"] {{ color: {t.warning}; background: {t.panel};
+    border-left: 3px solid {t.warning}; padding: 6px; font-weight: 600; }}
 QWidget#applicationHeader {{ background: {t.strip}; border-bottom: 1px solid {t.border}; }}
 QMenuBar, QToolBar {{ background: {t.strip}; border: none; }}
 QMenuBar {{ border-bottom: 1px solid {t.border}; }}

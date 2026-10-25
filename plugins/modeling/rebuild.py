@@ -102,7 +102,7 @@ class Rebuilder:
             refresh_datums(document)
             finish()
         def failed(error):
-            self.services.message.emit(f"Reconstruction interrompue : {error}")
+            self.services.report_problem(f"Reconstruction interrompue : {error}")
             self._cancelled[(document.id, body.id)] = result_signature(document.objects, body.id)
             finish()
         def cancelled():

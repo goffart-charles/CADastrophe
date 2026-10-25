@@ -199,7 +199,9 @@ class DocumentTreeAdapter(QObject):
                     else QStyle.StandardPixmap.SP_MessageBoxCritical))
                 text += f"\n{label} : {state.message}"
                 if state.status is not ResultStatus.DIRTY:
-                    item.setForeground(0, QBrush(QColor("#ad6800" if state.status is ResultStatus.BLOCKED else "#c0392b")))
+                    item.setForeground(0, QBrush(QColor(theme_tokens().warning if state.status is ResultStatus.BLOCKED else theme_tokens().negative)))
+                    font.setBold(True)
+                    item.setFont(0, font)
         if isinstance(obj, ConstructionFeature) and not obj.enabled:
             text += "\nDésactivée : effet retiré, paramètres conservés."
             text += "\nRéactivez pour ouvrir l'éditeur. Les paramètres restent accessibles dans Variables et équations."
@@ -212,12 +214,12 @@ class DocumentTreeAdapter(QObject):
             error = obj.reference_error(self.document)
             if error:
                 item.setIcon(0, self.tree.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical))
-                item.setForeground(0, QBrush(QColor("#c0392b")))
+                item.setForeground(0, QBrush(QColor(theme_tokens().negative)))
                 item.setToolTip(0, text+"\n"+error)
         from ..core.reference_objects import DatumPlaneObject
         if isinstance(obj, DatumPlaneObject) and obj.reference_error_message:
             item.setIcon(0, self.tree.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical))
-            item.setForeground(0, QBrush(QColor("#c0392b")))
+            item.setForeground(0, QBrush(QColor(theme_tokens().negative)))
             item.setToolTip(0, text+"\n"+obj.reference_error_message)
         if object_id in self.document.history_context.display()[1]:
             font.setItalic(True)

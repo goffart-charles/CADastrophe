@@ -1,7 +1,8 @@
 """Arithmetic input shared by unit-aware lengths, angles and recipe counts."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QValidator
-from PySide6.QtWidgets import QCompleter, QDoubleSpinBox, QSpinBox, QMenu, QToolButton
+from PySide6.QtWidgets import QCompleter, QSpinBox, QMenu, QToolButton
+from .numeric_input import DecimalSpinBox
 
 from ..core.expressions import Expression, ExpressionError, Node, bind, evaluate
 from ..core.parameters import graph, set_expression
@@ -253,7 +254,7 @@ class EquationInput:
         return getattr(self, "_equation_error", "")
 
 
-class EquationSpinBox(EquationInput, QDoubleSpinBox):
+class EquationSpinBox(EquationInput, DecimalSpinBox):
     pass
 
 

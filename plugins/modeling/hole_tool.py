@@ -100,7 +100,7 @@ class HoleSession(RecipePreview):
             widget.currentIndexChanged.connect(self.refresh_fields)
         self.all_points.toggled.connect(self.refresh_fields)
         self.positions.itemChanged.connect(changed)
-        self.body.currentIndexChanged.connect(changed)
+        self.body.currentIndexChanged.connect(self.target_changed)
         self.reverse.toggled.connect(changed)
         for field in self.fields.values():
             field.valueChanged.connect(changed)
@@ -159,7 +159,7 @@ class HoleSession(RecipePreview):
         obj = self.document.objects.get(self.source.currentData())
         if obj is not None:
             if not self.feature:
-                supports = set(obj.body_dependencies)
+                supports = set(obj.body_dependencies) | {ref.body_id for ref in obj.producer_refs}
                 available = [self.body.itemData(i) for i in range(self.body.count()) if self.body.itemData(i)]
                 target = next(iter(supports)) if len(supports) == 1 else available[0] if len(available) == 1 else None
                 if target in available:
@@ -174,7 +174,37 @@ class HoleSession(RecipePreview):
                 row.setData(Qt.ItemDataRole.UserRole, key)
                 row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 row.setCheckState(Qt.CheckState.Checked if key in keys else Qt.CheckState.Unchecked)
+        self.suggest_direction()
         self.refresh_fields()
+
+    def target_changed(self, *_):
+        self.suggest_direction()
+        self.changed()
+
+    def suggest_direction(self):
+        if self.feature:
+            return
+        sketch = self.document.objects.get(self.source.currentData())
+        target = self.document.objects.get(self.body.currentData())
+        if sketch is None or target is None or target.shape is None:
+            return
+        stamp = sketch.id, sketch.revision, target.id, target.revision
+        if stamp == getattr(self, '_direction_stamp', None):
+            return
+        self._direction_stamp = stamp
+        from .hole_geometry import suggested_hole_direction
+        from cadastrophe.core.history_position import context_object
+        try:
+            frame, points = self.profiles.position_points(self.document, sketch.id, ())
+            shape = context_object(self.document, target).shape
+            if shape is None:
+                return
+            suggested = suggested_hole_direction(shape, frame, points)
+            if suggested is not None:
+                with QSignalBlocker(self.reverse):
+                    self.reverse.setChecked(suggested)
+        except (ValueError, RuntimeError):
+            pass
 
     def refresh_fields(self, *_):
         form = self.form.currentData()

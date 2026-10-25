@@ -7,6 +7,7 @@ from ..core.expressions import Expression, Variable, evaluate
 from ..core.parameters import graph, set_expression
 from ..core.variable_files import bind_library, export_variables, reload_variables
 from .file_dialogs import FileDialogs, suggested_filename
+from .feedback import set_feedback
 
 
 class EquationsDialog(QDialog):
@@ -129,7 +130,7 @@ class EquationsDialog(QDialog):
             action()
             self.message.clear()
         except (ValueError, OSError, RuntimeError) as error:
-            self.message.setText(str(error))
+            set_feedback(self.message, str(error))
         self.refresh()
 
     def link_file(self):
@@ -166,7 +167,7 @@ class EquationsDialog(QDialog):
                 raise ValueError("La variable ou la cote sélectionnée n’existe plus.")
             self._choose_callback(node)
         except (ValueError, RuntimeError) as exc:
-            self.message.setText(str(exc))
+            set_feedback(self.message, str(exc))
             return
         self.accept()
 
@@ -195,7 +196,7 @@ class EquationsDialog(QDialog):
             else:
                 from ..core.parameters import dimensions
                 owner, target = key.split(":", 1)
-                value = float(text)
+                value = float(text.replace(',', '.'))
                 dim = next(d for d in dimensions(self.document.objects) if d.id == key)
                 if dim.integer and not value.is_integer():
                     raise ValueError("Un entier est requis.")
@@ -206,7 +207,7 @@ class EquationsDialog(QDialog):
                 self.document.update_construction((obj,), title="Modifier une dimension")
             self.message.clear()
         except (ValueError, RuntimeError) as exc:
-            self.message.setText(str(exc))
+            set_feedback(self.message, str(exc))
             item.setToolTip(str(exc))
             return
         finally:
@@ -233,4 +234,4 @@ class EquationsDialog(QDialog):
             self.document.set_variables(tuple(v for v in self.document.variables if v.id != key))
             self.message.clear()
         except (ValueError, RuntimeError) as exc:
-            self.message.setText(str(exc))
+            set_feedback(self.message, str(exc))

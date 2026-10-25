@@ -7,6 +7,39 @@ from cadastrophe.core.native_boolean import build_boolean
 from cadastrophe.core.native_naming import subshapes
 
 
+def suggested_hole_direction(shape, frame, points):
+    """Choose the side reaching material first at every position, or leave it open."""
+    from OCC.Core.IntCurvesFace import IntCurvesFace_ShapeIntersector
+    from OCC.Core.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCC.Core.TopAbs import TopAbs_IN
+    from OCC.Core.gp import gp_Pnt, gp_Dir, gp_Lin
+    intersector = IntCurvesFace_ShapeIntersector()
+    intersector.Load(shape, 1e-7)
+    scores = [[], []]
+    for _, point in points:
+        intersector.Perform(gp_Lin(gp_Pnt(*point.tuple()), gp_Dir(*frame.normal.tuple())), -1e100, 1e100)
+        distances = sorted(set(intersector.WParameter(i) for i in range(1, intersector.NbPnt()+1)))
+        for side, sign in enumerate((1, -1)):
+            probe = point + frame.normal*(sign*1e-5)
+            if BRepClass3d_SolidClassifier(shape, gp_Pnt(*probe.tuple()), 1e-7).State() == TopAbs_IN:
+                scores[side].append(0.)
+                continue
+            ahead = sorted(sign*d for d in distances if sign*d > 1e-7)
+            distance = float('inf')
+            for first, last in zip(ahead, ahead[1:]):
+                middle = point + frame.normal*(sign*(first+last)/2)
+                if BRepClass3d_SolidClassifier(shape, gp_Pnt(*middle.tuple()), 1e-7).State() == TopAbs_IN:
+                    distance = first
+                    break
+            scores[side].append(distance)
+    if not points:
+        return None
+    forward, backward = (sum(values) for values in scores)
+    if abs(forward-backward) < 1e-7 or forward == backward:
+        return None
+    return backward < forward
+
+
 def generating_holes(service, document, feature, previous, trace, *, position_id=None):
     from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeCone
     from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Fuse

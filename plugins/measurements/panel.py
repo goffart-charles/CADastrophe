@@ -1,9 +1,12 @@
 """Read-only result panel following current selection and display units."""
+from cadastrophe.plugin_api import DecimalSpinBox
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QGroupBox, QFormLayout, QDoubleSpinBox
 from cadastrophe.plugin_api import Material, ObjectType
 
 from .geometry import MODES, MeasurementError, measure
+from .selection import body_items
+from cadastrophe.plugin_api import set_feedback
 
 
 class MeasurementsPanel(QWidget):
@@ -42,7 +45,7 @@ class MeasurementsPanel(QWidget):
         material_layout = QFormLayout(self.material_group)
         self.material_name = QLineEdit()
         self.material_name.setAccessibleName('Nom du matériau')
-        self.density = QDoubleSpinBox()
+        self.density = DecimalSpinBox()
         self.density.setRange(.000001, 1e12)
         self.density.setDecimals(6)
         self.density.setValue(1000.)
@@ -71,7 +74,7 @@ class MeasurementsPanel(QWidget):
         # Clear immediately: never display a value for the previous selection.
         self.last_result = None
         self.result.clear()
-        self.detail.clear()
+        set_feedback(self.detail, '', 'info')
         if self.isVisible():
             self.timer.start()
 
@@ -87,8 +90,10 @@ class MeasurementsPanel(QWidget):
         document = self.services.active_document
         if document is None or not self.services.editable:
             return ()
-        return tuple(dict.fromkeys(item.object_id for item in self.services.selection_items
-                                   if item.object_id in document.objects and document.objects[item.object_id].kind is ObjectType.BODY))
+        try:
+            return tuple(item.object_id for item in body_items(document, self.services.selection_items))
+        except MeasurementError:
+            return ()
 
     def update_material_buttons(self, *_):
         targets = self.material_targets()
@@ -105,14 +110,14 @@ class MeasurementsPanel(QWidget):
             self.services.active_document.set_materials({key: material for key in targets})
             self.refresh()
         except (MeasurementError, ValueError, RuntimeError) as exc:
-            self.detail.setText(str(exc))
+            set_feedback(self.detail, str(exc))
 
     def refresh(self):
         self.timer.stop()
         self.last_result = None
         self.result.clear()
         self.selection.clear()
-        self.detail.clear()
+        set_feedback(self.detail, '', 'info')
         key = self.mode.currentData()
         self.material_group.setVisible(key in {'volume', 'mass'})
         targets = self.material_targets()
@@ -137,6 +142,12 @@ class MeasurementsPanel(QWidget):
             return
         try:
             items = self.services.selection_items
+            if key == 'mass':
+                bodies = body_items(document, items)
+                if ([(i.object_id, i.topology) for i in items]
+                        != [(i.object_id, i.topology) for i in bodies]):
+                    self.services.select_objects(item.object_id for item in bodies)
+                items = bodies
             for item in items:
                 obj = document.objects.get(item.object_id)
                 if obj is None or obj.revision != item.revision:
@@ -149,4 +160,4 @@ class MeasurementsPanel(QWidget):
             self.result.setText(result.formatted(self.services.display_units))
             self.detail.setText(result.explanation)
         except MeasurementError as exc:
-            self.detail.setText(str(exc))
+            set_feedback(self.detail, str(exc))

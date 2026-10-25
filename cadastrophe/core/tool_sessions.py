@@ -50,6 +50,7 @@ class ToolSessionManager(QObject):
         self.editor = None
         self.can_commit = False
         self.message = ""
+        self.message_level = "info"
         self._working = False
         self._committing = False
         self._preview_revision = 0
@@ -135,6 +136,7 @@ class ToolSessionManager(QObject):
             self.can_commit = False
             self.preview_object = None
             self.message = "Mise à jour de l’aperçu…"
+            self.message_level = "info"
             if not self._working:
                 self.changed.emit()
                 self._timer.start()
@@ -161,6 +163,7 @@ class ToolSessionManager(QObject):
         self.preview_object = obj
         commit_error = getattr(self.tool, "commit_error", "")
         self.can_commit = obj is not None and not commit_error
+        self.message_level = "error" if commit_error else "warning" if getattr(self.tool, "rebuild_warning", "") else "info"
         self.message = commit_error or getattr(self.tool, "rebuild_warning", "") or ("Entrée : valider · Échap : annuler" if obj is not None else "Renseignez les paramètres de l’outil.")
 
     def _start_preview(self, revision):
@@ -207,6 +210,7 @@ class ToolSessionManager(QObject):
         self.can_commit = False
         self.preview_object = None
         self.message = f"Aperçu impossible : {error}"
+        self.message_level = "error"
         try:
             self.host.clear_preview()
         except (Exception, SystemExit) as cleanup_error:
@@ -221,6 +225,7 @@ class ToolSessionManager(QObject):
         self._cancel_preview()
         self.can_commit = False
         self.preview_object = None
+        self.message_level = "info"
         revision = self._preview_revision
         try:
             prepare = getattr(self.host, "prepare_preview", None)
@@ -371,6 +376,7 @@ class ToolSessionManager(QObject):
             connected = True
             self.can_commit = True
             self.message = "Milieu : rotation · Ctrl+milieu : pan · Alt+milieu : roulis · Ctrl+8 : vue normale"
+            self.message_level = "info"
         except (Exception, SystemExit) as exc:
             self._finish_edit(connected=connected)
             self.error.emit(f"Édition impossible : {exc}")
@@ -431,6 +437,7 @@ class ToolSessionManager(QObject):
         self.tool = self.document = self.owner = self.preview_object = None
         self.can_commit = False
         self.message = ""
+        self.message_level = "info"
         try:
             for cleanup in (self.host.clear_preview, self.host.close, tool.dispose):
                 try:

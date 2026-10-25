@@ -97,7 +97,7 @@ class PluginManager:
     def _report(self, record, message):
         record.error = str(message)
         log.warning("Plugin %s: %s", record.manifest.id if record.manifest else record.path.name, message)
-        self.services.message.emit("Extension : " + str(message))
+        self.services.report_problem("Extension : " + str(message))
 
     def discover(self):
         if self._discovered:

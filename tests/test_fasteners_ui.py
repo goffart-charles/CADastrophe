@@ -16,6 +16,66 @@ from test_threads import support
 from test_interactive_computation import wait_for
 
 
+def test_thread_ui_starts_empty_picks_actual_hole_wall_and_accepts_decimal_keys(extrusion_system):
+    from math import cos, sin, pi
+    from PySide6.QtCore import QPoint
+    from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
+    from OCC.Core.GeomAbs import GeomAbs_Cylinder
+    from OCC.Core.TopoDS import topods
+    w, _, _ = extrusion_system
+    doc = w.viewport.document
+    body = base_body(extrusion_system)
+    sketch = positions(extrusion_system, body)
+    w.tree_selection_changed([sketch.id])
+    assert w.command_registry.execute('modeling.hole_wizard')
+    hole = w.tool_sessions.tool
+    hole.fields['diameter'].set_internal_value(5.)
+    hole.condition.setCurrentIndex(hole.condition.findData('through_all'))
+    assert w.tool_sessions.commit(), w.tool_sessions.message
+    w.services.select_objects(())
+    w.viewport.view.SetProj(.25, .2, 1.)
+    w.viewport.view.FitAll(.05, False)
+    w.viewport.view.Redraw()
+    assert w.command_registry.execute('modeling.thread')
+    tool = w.tool_sessions.tool
+    assert tool.support.currentData() is None and tool.face_ref is None
+    wait_for(lambda: not w.computations.busy)
+    assert not w.tool_sessions.can_commit
+    point = None
+    for angle in (i*pi/8 for i in range(16)):
+        for z in (19., 18., 19.5):
+            px, py = w.viewport.view.Convert(20+2.5*cos(angle), 20+2.5*sin(angle), z)
+            scale = w.viewport.devicePixelRatioF()
+            x, y = round(px/scale), round(py/scale)
+            item = tool.surface.pick_face(x, y)
+            if item is not None:
+                surface = BRepAdaptor_Surface(topods.Face(item.shape))
+                if surface.GetType() == GeomAbs_Cylinder and abs(surface.Cylinder().Radius()-2.5) < 1e-6:
+                    point = QPoint(x, y)
+                    break
+        if point is not None:
+            break
+    assert point is not None, 'La paroi cylindrique doit être visible dans le trou.'
+    QTest.mouseClick(w.viewport, Qt.MouseButton.LeftButton, pos=point)
+    assert tool.face_ref is not None and tool.internal
+    assert tool._supports[tool.face_ref][3]
+    for key, text, value in (('pitch', '0.75', .75), ('length', '2,25', 2.25)):
+        field = tool.fields[key]
+        field.setFocus()
+        field.lineEdit().selectAll()
+        QTest.keyClicks(field.lineEdit(), text)
+        QTest.keyClick(field, Qt.Key.Key_Tab)
+        assert field.internal_value == pytest.approx(value), field.lineEdit().text()
+    # Restore the metric pitch; test its geometry independently of custom-profile limits.
+    tool.fields['pitch'].set_internal_value(1.)
+    w.tool_sessions.update_preview(interactive=True)
+    wait_for(lambda: w.tool_sessions.can_commit, timeout=60)
+    assert w.tool_sessions.commit_interactive(), w.tool_sessions.message
+    wait_for(lambda: w.tool_sessions.tool is None, timeout=60)
+    thread = next(obj for obj in doc.objects.values() if isinstance(obj, ThreadFeature))
+    assert thread.parameters.internal and thread.parameters.length == pytest.approx(2.25)
+
+
 def test_fastener_ui_metric_tap_drill_preset_custom_cancel_and_reopen(extrusion_system, tmp_path):
     w, _, _ = extrusion_system
     doc = w.viewport.document
@@ -115,6 +175,8 @@ def test_thread_ui_cancel_in_progress_and_replace_parameters_without_partial_pub
     snapshot = dict(doc.objects)
     assert w.command_registry.execute("modeling.thread")
     tool = w.tool_sessions.tool
+    assert tool.support.currentData() is None
+    tool.support.setCurrentIndex(1)
     tool.fields["length"].set_internal_value(3.)
     w.tool_sessions.update_preview(interactive=True)
     assert w.tool_sessions.cancel()
@@ -122,6 +184,7 @@ def test_thread_ui_cancel_in_progress_and_replace_parameters_without_partial_pub
     assert dict(doc.objects) == snapshot and doc.history.count == 0 and not doc.history.blocked
     assert w.command_registry.execute("modeling.thread")
     tool = w.tool_sessions.tool
+    tool.support.setCurrentIndex(1)
     tool.fields["length"].set_internal_value(3.)
     w.tool_sessions.update_preview(interactive=True)
     tool.fields["length"].set_internal_value(4.)

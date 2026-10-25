@@ -79,6 +79,7 @@ def parse(text):
         tokens[alias] = match.group(1) or match.group(2)
         return alias
     source = _DIMENSION.sub(dimension, source).strip()
+    source = re.sub(r"(?<=\d),(?=\d)", ".", source)
     try:
         tree = ast.parse(source, mode="eval")
     except (SyntaxError, ValueError, RecursionError) as exc:

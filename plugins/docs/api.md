@@ -45,6 +45,8 @@ et `mutates=False`.
 |---|---|
 | `active_document`, `documents` | Document courant ou `None`, instantané des documents ouverts. Ne pas conserver une ancienne sélection lors d'un changement de document. |
 | `selected_ids`, `selection_items` | UUID sélectionnés et sous-formes natives de la révision courante ; ne pas conserver une sous-forme après recalcul. |
+| `select_objects(object_ids)` | Sélectionne des objets entiers par l’autorité commune de l’arbre et de la vue native. Refusé pendant une opération exclusive. |
+| `report_problem(text)` | Émet le message et signale un problème visible avec la couleur d’erreur du thème. |
 | `editable`, `busy`, `editing`, `edit_owner` | Disponibilité et propriétaire de l'édition courante. |
 | `can_start_tool`, `can_start_from_sketch` | Disponibilité pour le lancement d'une session. |
 | `display_units` | Conversion d'affichage ; l'unité géométrique interne reste le mm. |
@@ -55,7 +57,7 @@ et `mutates=False`.
 | `computation_available`, `computation_busy` | État du service de calcul. |
 
 Signaux : `active_document_changed(document)`, `state_changed()`,
-`selection_changed(items)` et `message(str)`. Connecter les observateurs avec
+`selection_changed(items)`, `message(str)` et `problem(str)`. Connecter les observateurs avec
 `context.connect`, notamment pour mettre à jour un panneau et ses actions.
 
 Services intégrés : `cadastrophe.sketch.profiles` pour les profils,
@@ -71,6 +73,13 @@ extension tierce ; proposer un service public si une capacité manque.
 `SceneObject.material` est optionnel et réservé aux corps ;
 `Document.set_materials({uuid: material_ou_None})` applique une affectation annulable
 sans changer la géométrie. Les volumes internes sont en mm³ et les masses en g.
+
+`DecimalSpinBox`, `EquationSpinBox` et `LengthSpinBox` acceptent le point ou la
+virgule comme séparateur décimal, sans séparateur de milliers. Les expressions
+acceptent également les deux séparateurs pour les nombres. `LengthSpinBox`
+conserve les valeurs internes en mm. `ErrorLabel` et `set_feedback(label, text,
+severity="error")` rendent les problèmes visibles dans les thèmes clair et sombre ;
+les autres niveaux sont `warning` et `info`.
 
 `VariableSource`, `bind_library(document, path)`, `export_variables(document, path)`
 et `reload_variables(document)` sont exposés pour les bibliothèques partagées.

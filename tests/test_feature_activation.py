@@ -15,6 +15,7 @@ from cadastrophe.core.expressions import Expression
 from cadastrophe.document import ObjectType
 from cadastrophe.core.topology_refs import TopologyReference
 from cadastrophe.core.persistence import write_document
+from cadastrophe.ui.themes import theme_tokens
 from test_extrusion_tool import extrusion_system, start, rectangle
 from test_boss_tool import base_body, face_sketch
 from test_parametric_rebuild import edge_operation, two_extrusions
@@ -159,7 +160,8 @@ def test_activation_interbody_created_face_blocks_but_inherited_face_survives(ex
     assert blocked.status is ResultStatus.BLOCKED and doc.objects[created_body.id].shape is None
     assert boss_id in blocked.diagnostics[0].root_ids and "désactiv" in blocked.message.lower()
     blocked_row = w.tree_adapter.items[created_body.features[0]]
-    assert blocked_row.foreground(0).color().name() == "#ad6800" and not blocked_row.font(0).strikeOut()
+    assert blocked_row.foreground(0).color().name() == theme_tokens().warning
+    assert blocked_row.font(0).bold() and not blocked_row.font(0).strikeOut()
     if legacy:
         assert body_result(doc, inherited_body.id).status is ResultStatus.BLOCKED
     else:
@@ -190,7 +192,8 @@ def test_activation_disabled_invalid_recipe_is_skipped_then_error_is_explicit(ex
     assert body_result(doc, body.id).status is ResultStatus.ERROR
     assert doc.objects[body.id].shape is None and doc.objects[fid].parameters.size == 100.
     assert "Erreur" in w.tree_adapter.items[fid].toolTip(0)
-    assert w.tree_adapter.items[fid].foreground(0).color().name() == "#c0392b"
+    assert w.tree_adapter.items[fid].foreground(0).color().name() == theme_tokens().negative
+    assert w.tree_adapter.items[fid].font(0).bold()
     assert not w.tree_adapter.items[fid].font(0).strikeOut()
     doc.replace_feature(replace(original, revision=doc.objects[fid].revision)); flush(w)
     assert BRepCheck_Analyzer(doc.objects[body.id].shape).IsValid()

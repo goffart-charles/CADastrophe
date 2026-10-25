@@ -1,4 +1,5 @@
 """Shared reference fields for datum, revolution and transformed-operation tools."""
+from cadastrophe.plugin_api import DecimalSpinBox
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QComboBox, QPushButton, QDoubleSpinBox, QSizePolicy, QCheckBox
 from PySide6.QtCore import QSignalBlocker
 
@@ -66,7 +67,7 @@ class ReferencePicker(QWidget):
         form.setContentsMargins(0,0,0,0)
         self.values = []
         for i, label in enumerate(("X", "Y", "Z", "Direction X", "Direction Y", "Direction Z")[:6 if kind == "axis" else 3]):
-            control = LengthSpinBox(session.services.display_units, -1e9, 1e9, point[i] if i < 3 else (1. if i == 5 else 0.)) if i < 3 else QDoubleSpinBox()
+            control = LengthSpinBox(session.services.display_units, -1e9, 1e9, point[i] if i < 3 else (1. if i == 5 else 0.)) if i < 3 else DecimalSpinBox()
             if i >= 3:
                 control.setRange(-1e6,1e6)
                 control.setDecimals(6)

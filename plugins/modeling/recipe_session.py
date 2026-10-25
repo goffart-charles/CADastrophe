@@ -77,11 +77,11 @@ class RecipePreview:
         affected = affected_bodies(candidate, (o.id for o in objects))
         results, prefixes = yield from preview_construction_steps(self.document, candidate, affected,
             self.extrusions.evaluator, strict=False, cache=self._preview_cache)
-        self._results, self._prefixes = results, prefixes
         from cadastrophe.core.feature_model import BodyStateRef, ResultStatus
-        current = self._prefixes[feature.body_id][BodyStateRef(feature.body_id, feature.id)]
+        current = prefixes[feature.body_id][BodyStateRef(feature.body_id, feature.id)]
         if current.status is not ResultStatus.READY:
             raise ValueError(current.message)
+        self._results, self._prefixes = results, prefixes
         self._objects = tuple(objects)
         self.rebuild_warning = next((r.message for r in self._results.values() if r.shape is None), "")
         self._current = current

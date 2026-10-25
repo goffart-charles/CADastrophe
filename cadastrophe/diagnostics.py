@@ -15,7 +15,7 @@ def run_smoke():
         app = QApplication(sys.argv)
         app.setApplicationName('CADastrophe')
         window = MainWindow()
-        diagnostics.notify = window.services.message.emit
+        diagnostics.notify = window.services.report_problem
         window.show()
         QTimer.singleShot(1500, lambda: smoke_test(app, window))
         return app.exec()
