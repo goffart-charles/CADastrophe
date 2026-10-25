@@ -141,6 +141,12 @@ l'hôte. Une erreur annule l'ensemble ; Échap annule l'aperçu sans mutation.
 pas devenir un état métier dans une présentation AIS. Pour un exemple complet,
 consulter [primitives/parameters.py](../primitives/parameters.py).
 
+Un outil interactif peut fournir `attach(surface)`, `clicked(x, y)` et
+`hovered(x, y)`. La surface commune fournit `focus()`, `pick_face(x, y)` et
+`highlight_regions(selected=(), hovered=None)` ; les coordonnées restent en
+pixels logiques Qt. À la sortie de la vue, `hovered(None, None)` permet de
+retirer le survol. La surface est fermée automatiquement avec la session.
+
 Un `EditSession` persistant fournit aussi `object_id`, `workplane`,
 `is_valid(document)` et `refresh(document)`. Les gestes validés passent par les
 commandes ordinaires avec undo/redo ; terminer l'éditeur ne regroupe pas toute
@@ -157,3 +163,5 @@ Qt et les présentations restent sur le thread principal. Les bibliothèques
 géométriques ayant des options globales peuvent nécessiter un processus isolé,
 comme les [échanges](../import_export/plugin.py). Un calcul long doit offrir
 progression, annulation et nettoyage ; ne pas publier un résultat partiel.
+L’option `preserve_focus=True` de `run_computation` conserve le focus de saisie
+pendant l’affichage de la progression ; l’hôte l’utilise pour les aperçus.

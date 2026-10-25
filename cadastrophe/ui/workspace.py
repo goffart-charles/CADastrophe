@@ -4,6 +4,15 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit, QTabWidge
     QToolButton, QVBoxLayout, QWidget, QStackedWidget, QScrollArea)
 
 from .icons import icon
+from ..document import ObjectType
+
+
+def material_text(obj):
+    if obj.kind is not ObjectType.BODY:
+        return ""
+    material = obj.material
+    return (f"\nMatériau : {material.name}\nMasse volumique : {material.density_kg_m3:g} kg/m³"
+            if material is not None else "\nMatériau : non affecté")
 
 
 class ActionStrip(QFrame):
@@ -99,8 +108,10 @@ class ManagerPane(QTabWidget):
         self._add_page(page, "tree", "Arbre de construction")
         properties, layout = self._page("Propriétés")
         self.selection_name = QLabel("Aucune sélection")
+        self.selection_name.setTextFormat(Qt.TextFormat.PlainText)
         self.selection_name.setWordWrap(True)
         self.selection_detail = QLabel("Sélectionnez un corps ou un plan dans l’arbre ou la vue 3D.")
+        self.selection_detail.setTextFormat(Qt.TextFormat.PlainText)
         self.selection_detail.setWordWrap(True)
         layout.addWidget(self.selection_name)
         layout.addWidget(self.selection_detail)
@@ -163,9 +174,10 @@ class ManagerPane(QTabWidget):
                 f"\nTransparence : {obj.transparency * 100:g} %"
                 f"\nCouleur RGB : {', '.join(f'{component:g}' for component in obj.color)}"
                 f"\nRévision : {obj.revision}\nUnité interne : {length_unit}\nAffichage : {display_unit}"
+                + material_text(obj)
                 + (f"\nSélection : {', '.join(dict.fromkeys(item.topology for item in items))}" if items else ""))
         else:
             self.selection_name.setText(f"{len(objects)} objets sélectionnés")
             self.selection_detail.setText("\n\n".join(
-                f"{obj.name} — {obj.kind.label}\n{'Visible' if obj.visible else 'Masqué'} · Transparence {obj.transparency * 100:g} %"
+                f"{obj.name} — {obj.kind.label}\n{'Visible' if obj.visible else 'Masqué'} · Transparence {obj.transparency * 100:g} %" + material_text(obj)
                 for obj in objects))

@@ -25,7 +25,7 @@ conda activate cadastrophe-build
 ```
 
 La version par défaut est définie dans [version.iss](version.iss), actuellement
-`0.2.1`. `-Version 0.2.2` permet de la remplacer pour une construction.
+`0.2.2`. `-Version 0.2.3` permet de la remplacer pour une construction.
 Le script PowerShell transmet cette même version au compilateur Inno Setup.
 
 Depuis ce dépôt, le runtime natif local `.tools/mamba/envs/.occt-env` est aussi

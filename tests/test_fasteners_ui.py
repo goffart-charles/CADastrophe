@@ -16,9 +16,12 @@ from test_threads import support
 from test_interactive_computation import wait_for
 
 
-def test_thread_ui_starts_empty_picks_actual_hole_wall_and_accepts_decimal_keys(extrusion_system):
+@pytest.mark.parametrize('selection', ('none', 'body'))
+def test_thread_ui_starts_empty_picks_actual_hole_wall_and_accepts_decimal_keys(extrusion_system, selection):
     from math import cos, sin, pi
-    from PySide6.QtCore import QPoint
+    from PySide6.QtCore import QEvent, QPoint, QPointF
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
     from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
     from OCC.Core.GeomAbs import GeomAbs_Cylinder
     from OCC.Core.TopoDS import topods
@@ -33,12 +36,16 @@ def test_thread_ui_starts_empty_picks_actual_hole_wall_and_accepts_decimal_keys(
     hole.condition.setCurrentIndex(hole.condition.findData('through_all'))
     assert w.tool_sessions.commit(), w.tool_sessions.message
     w.services.select_objects(())
+    if selection == 'body':
+        w.services.select_objects((body.id,))
     w.viewport.view.SetProj(.25, .2, 1.)
     w.viewport.view.FitAll(.05, False)
     w.viewport.view.Redraw()
     assert w.command_registry.execute('modeling.thread')
     tool = w.tool_sessions.tool
     assert tool.support.currentData() is None and tool.face_ref is None
+    QTest.mouseClick(tool.face_field.edit, Qt.MouseButton.LeftButton)
+    assert w.viewport.hasFocus()
     wait_for(lambda: not w.computations.busy)
     assert not w.tool_sessions.can_commit
     point = None
@@ -56,6 +63,13 @@ def test_thread_ui_starts_empty_picks_actual_hole_wall_and_accepts_decimal_keys(
         if point is not None:
             break
     assert point is not None, 'La paroi cylindrique doit être visible dans le trou.'
+    # A private Windows desktop does not receive OS cursor moves from QTest.
+    QApplication.sendEvent(w.viewport, QMouseEvent(QEvent.Type.MouseMove, QPointF(point),
+        QPointF(w.viewport.mapToGlobal(point)), Qt.MouseButton.NoButton,
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+    assert any(w.viewport.context.IsDisplayed(ais) for ais in tool.surface._feedback)
+    QApplication.sendEvent(w.viewport, QEvent(QEvent.Type.Leave))
+    assert not tool.surface._feedback
     QTest.mouseClick(w.viewport, Qt.MouseButton.LeftButton, pos=point)
     assert tool.face_ref is not None and tool.internal
     assert tool._supports[tool.face_ref][3]

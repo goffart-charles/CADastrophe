@@ -7,7 +7,7 @@ class Computation(QObject):
     progressed = Signal(int, int, str)
     finished = Signal(str)
 
-    def __init__(self, parent, steps, title, *, completed=None, failed=None, cancelled=None):
+    def __init__(self, parent, steps, title, *, completed=None, failed=None, cancelled=None, preserve_focus=False):
         super().__init__(parent)
         self.steps = iter(steps)
         self.completed, self.failed, self.cancelled = completed, failed, cancelled
@@ -16,6 +16,9 @@ class Computation(QObject):
         self.dialog = QProgressDialog(title, "Annuler", 0, 0, parent)
         self.dialog.setWindowTitle(title)
         self.dialog.setWindowModality(Qt.WindowModality.NonModal)
+        if preserve_focus:
+            self.dialog.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, True)
+            self.dialog.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.dialog.setMinimumDuration(500)
         self.dialog.setAutoClose(False)
         self.dialog.setAutoReset(False)

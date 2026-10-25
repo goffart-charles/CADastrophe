@@ -182,6 +182,9 @@ class DocumentTreeAdapter(QObject):
         font.setItalic(not obj.visible)
         item.setFont(0, font)
         text = f"{binding.label if binding is not None else obj.kind.label} · {self.document.length_unit}"
+        if obj.kind is ObjectType.BODY:
+            from .workspace import material_text
+            text += material_text(obj)
         if obj.plane is not None:
             text += f"\nNormale {obj.plane.normal.tuple()} · U {obj.plane.u.tuple()} · V {obj.plane.v.tuple()}"
         if isinstance(obj, (BodyObject, ConstructionFeature)):

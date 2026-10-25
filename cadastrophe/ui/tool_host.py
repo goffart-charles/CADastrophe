@@ -55,7 +55,7 @@ class ToolUiHost(QObject):
                 field.interpretText()
 
     def run_preview(self, steps, title, **callbacks):
-        return self.window.services.run_computation(steps, "Aperçu · " + title, **callbacks)
+        return self.window.services.run_computation(steps, "Aperçu · " + title, preserve_focus=True, **callbacks)
 
     def preview(self, obj):
         tool = self.window.tool_sessions.tool

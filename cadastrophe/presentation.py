@@ -79,6 +79,10 @@ class ToolInteractionSurface(PresentationSurface):
         viewport.tool_pick_handler = clicked
         viewport.tool_hover_handler = hovered
 
+    def focus(self):
+        if not self.closed:
+            self._viewport().setFocus(Qt.FocusReason.OtherFocusReason)
+
     def highlight_object(self, key):
         if key == self._hovered_object:
             return

@@ -4,6 +4,7 @@ from dataclasses import replace
 from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QCheckBox, QListWidget, QListWidgetItem, QLabel
 from PySide6.QtCore import Qt, QSignalBlocker
 from cadastrophe.plugin_api import LengthSpinBox, EquationSpinBox, bind_fields
+from .selection_field import SelectionField
 from cadastrophe.document import ObjectType, SceneObject
 from cadastrophe.core.feature_objects import HoleFeature, SketchSourceObject
 from cadastrophe.core.feature_model import Operation
@@ -31,6 +32,16 @@ class HoleSession(RecipePreview):
         self.source, self.body = QComboBox(), QComboBox()
         self.source.setObjectName("holeSketch")
         self.body.setObjectName("holeTarget")
+        self.sketch_pick = SelectionField("Cliquer une esquisse de points dans la vue 3D")
+        self.sketch_pick.setObjectName("holeSketchSelection")
+        self.body_pick = SelectionField("Cliquer le corps à percer dans la vue 3D")
+        self.body_pick.setObjectName("holeBodySelection")
+        self.body_pick.setEnabled(not self.feature)
+        self.pick_target = "sketch"
+        self.sketch_pick.activated.connect(lambda: self.activate_pick("sketch"))
+        self.body_pick.activated.connect(lambda: self.activate_pick("body"))
+        self.sketch_pick.cleared.connect(lambda: self.source.setCurrentIndex(0))
+        self.body_pick.cleared.connect(lambda: self.body.setCurrentIndex(0))
         self.source.addItem("Choisir une esquisse de points…", None)
         self.body.addItem("Choisir le corps à percer…", None)
         for obj in self.document.objects.values():
@@ -44,7 +55,8 @@ class HoleSession(RecipePreview):
         if self.feature:
             self.body.setCurrentIndex(self.body.findData(self.feature.body_id))
             self.body.setEnabled(False)
-        form.addRow("Esquisse de positionnement", self.source)
+        form.addRow("Esquisse de positionnement", self.sketch_pick)
+        form.addRow("Ou choisir dans la liste", self.source)
         self.all_points = QCheckBox("Tous les points, y compris ceux des motifs")
         self.all_points.setChecked(not p.positions)
         form.addRow(self.all_points)
@@ -90,7 +102,8 @@ class HoleSession(RecipePreview):
         self.fields["angle"] = angle
         form.addRow("Angle de fraisure", angle)
         form.addRow(self.reverse)
-        form.addRow("Corps cible", self.body)
+        form.addRow("Corps cible", self.body_pick)
+        form.addRow("Ou choisir dans la liste", self.body)
         hint = QLabel("Créez d’abord une esquisse sur un plan ou une face plane avec l’outil Esquisse, "
                       "puis placez ses points et leurs motifs. Sélectionnez ici cette esquisse et le corps à percer.")
         hint.setWordWrap(True)
@@ -155,15 +168,31 @@ class HoleSession(RecipePreview):
         self.refresh_fields()
 
     def refresh_points(self, *_):
+        self._pick_error = ""
         self.positions.clear()
         obj = self.document.objects.get(self.source.currentData())
+        self.sketch_pick.set_value(obj.id if obj else None, obj.name if obj else "")
+        if not self.feature:
+            available = [self.body.itemData(i) for i in range(self.body.count()) if self.body.itemData(i)]
+            support = self.document.objects.get(obj.sketch.support.plane_id) if obj else None
+            # The sketch's attachment has priority over unrelated projected geometry.
+            owners, visited, pending = set(), set(), [support] if support else []
+            from cadastrophe.core.reference_objects import DatumPlaneObject
+            while pending:
+                current = pending.pop()
+                if current.id in visited:
+                    continue
+                visited.add(current.id)
+                if current.kind is ObjectType.BODY:
+                    owners.add(current.id)
+                elif isinstance(current, DatumPlaneObject):
+                    pending.extend(self.document.objects[ref.object_id] for ref in current.geometry_references
+                                   if ref.object_id in self.document.objects)
+            if not owners and obj:
+                owners = set(obj.body_dependencies) | {ref.body_id for ref in obj.producer_refs}
+            target = next(iter(owners)) if len(owners) == 1 else available[0] if len(available) == 1 else None
+            self.body.setCurrentIndex(max(0, self.body.findData(target)))
         if obj is not None:
-            if not self.feature:
-                supports = set(obj.body_dependencies) | {ref.body_id for ref in obj.producer_refs}
-                available = [self.body.itemData(i) for i in range(self.body.count()) if self.body.itemData(i)]
-                target = next(iter(supports)) if len(supports) == 1 else available[0] if len(available) == 1 else None
-                if target in available:
-                    self.body.setCurrentIndex(self.body.findData(target))
             selected = self.feature.parameters.positions if self.feature else ()
             keys = {r.entity_id for r in selected}
             # Keep missing selections visible and invalid until explicitly repaired.
@@ -175,11 +204,77 @@ class HoleSession(RecipePreview):
                 row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 row.setCheckState(Qt.CheckState.Checked if key in keys else Qt.CheckState.Unchecked)
         self.suggest_direction()
+        key = self.body.currentData()
+        self.body_pick.set_value(key, self.body.currentText() if key else "")
+        if obj is not None and key is None and not self.feature:
+            self.activate_pick("body")
+        self.sketch_pick.set_active(self.pick_target == "sketch")
+        self.body_pick.set_active(self.pick_target == "body")
         self.refresh_fields()
 
     def target_changed(self, *_):
+        self._pick_error = ""
+        key = self.body.currentData()
+        self.body_pick.set_value(key, self.body.currentText() if key else "")
         self.suggest_direction()
         self.changed()
+
+    def activate_pick(self, target):
+        if target == "body" and self.feature:
+            return
+        self.pick_target = target
+        self.sketch_pick.set_active(target == "sketch")
+        self.body_pick.set_active(target == "body")
+        if self.surface is not None:
+            self.surface.highlight_object(None)
+            self.surface.highlight_regions()
+            self.surface.focus()
+
+    def pick_shape(self, object_id):
+        if self.feature and object_id == self.feature.body_id:
+            from cadastrophe.core.body_history import result_at
+            return result_at(self.document, self.feature.input_state).shape
+        from cadastrophe.core.history_position import context_object
+        return context_object(self.document, self.document.objects[object_id]).shape
+
+    def clicked(self, x, y):
+        try:
+            self._pick_error = ""
+            if self.pick_target == "sketch":
+                key = self.surface.detect_object(x, y)
+                if isinstance(self.document.objects.get(key), SketchSourceObject):
+                    self.source.setCurrentIndex(self.source.findData(key))
+                    self.changed()
+                    return True
+                raise ValueError("Cliquez une esquisse visible ou choisissez-la dans la liste.")
+            item = self.surface.pick_face(x, y)
+            if item is not None:
+                self.body.setCurrentIndex(self.body.findData(item.object_id))
+                self.changed()
+                return True
+            raise ValueError("Cliquez un corps solide ou choisissez-le dans la liste.")
+        except (ValueError, RuntimeError) as error:
+            self._pick_error = str(error)
+            self.changed()
+        return True
+
+    def hovered(self, x, y):
+        if self.surface is None:
+            return
+        key, face = None, None
+        try:
+            if x is not None and y is not None:
+                if self.pick_target == "sketch":
+                    detected = self.surface.detect_object(x, y)
+                    if isinstance(self.document.objects.get(detected), SketchSourceObject):
+                        key = detected
+                else:
+                    item = self.surface.pick_face(x, y)
+                    face = item.shape if item is not None else None
+        except (ValueError, RuntimeError):
+            pass
+        self.surface.highlight_object(key)
+        self.surface.highlight_regions(hovered=face)
 
     def suggest_direction(self):
         if self.feature:

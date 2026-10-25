@@ -1093,6 +1093,40 @@ class MainWindow(QMainWindow):
                     commands.append(command_id)
             if any(obj.kind is ObjectType.BODY for obj in objects):
                 commands += ["object.isolate", "object.transparency"]
+                try:
+                    self.command_registry.action("cadastrophe.measurements.material")
+                except KeyError:
+                    pass
+                else:
+                    commands.append("cadastrophe.measurements.material")
+                from .core.feature_objects import BodyObject
+                for body in objects:
+                    if not isinstance(body, BodyObject) or not body.features:
+                        continue
+                    functions = menu.addMenu(f"Fonctions de {body.name}")
+                    for feature_id in body.features:
+                        feature = document.objects.get(feature_id)
+                        if not isinstance(feature, ConstructionFeature):
+                            continue
+                        feature_menu = functions.addMenu(feature.name)
+                        for key in ("edit_feature", "history_before", "history_after"):
+                            command_id = "cadastrophe.modeling."+key
+                            try:
+                                shared = self.command_registry.action(command_id)
+                            except KeyError:
+                                continue
+                            # Bind an explicit recipe target, then invoke the shared command.
+                            action = feature_menu.addAction(shared.icon(), shared.text())
+                            action.setData((feature_id, command_id))
+                            available = self.services.can_start_tool
+                            if key == "edit_feature":
+                                available = available and feature.enabled and feature.id not in document.history_context.display()[1]
+                            action.setEnabled(available)
+                            def invoke(_checked=False, target=feature_id, command=command_id, source=document):
+                                if self.services.active_document is source and target in source.objects and self.services.can_start_tool:
+                                    self.services.select_objects((target,))
+                                    self.command_registry.execute(command)
+                            action.triggered.connect(invoke)
             from .core.reference_objects import DatumPlaneObject
             if any(obj.kind is not ObjectType.REFERENCE_PLANE or isinstance(obj, DatumPlaneObject) for obj in objects):
                 commands += ["object.delete"]

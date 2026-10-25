@@ -2,7 +2,7 @@
 from dataclasses import replace, fields
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QLabel, QCheckBox, QGroupBox
+from PySide6.QtWidgets import QWidget, QFormLayout, QComboBox, QLabel, QCheckBox, QGroupBox, QPushButton
 
 from cadastrophe.plugin_api import LengthSpinBox, EquationSpinBox, EquationIntSpinBox, bind_fields
 from cadastrophe.document import ObjectType, SceneObject
@@ -50,6 +50,7 @@ class ThreadSession(RecipePreview):
         self.support.setObjectName("threadSupport")
         self.support.addItem("Choisir une face cylindrique dans la vue…", None)
         self._supports = {}
+        self._support_faces = {}
         for body in self.document.objects.values():
             if body.kind is not ObjectType.BODY or self.feature and body.id != self.body_id:
                 continue
@@ -69,6 +70,7 @@ class ThreadSession(RecipePreview):
                     selection = GeometryReference("face", body.id, ref.producer_id, capture(state.shape, face, "Face", topology))
                     self.support.addItem(f"{body.name} · {'Trou' if internal else 'Tige'} Ø{2*cylinder.Radius():g} · face {i}", selection)
                     self._supports[selection] = (cylinder, v0, v1, internal)
+                    self._support_faces[selection] = face
             except (ValueError, RuntimeError):
                 continue
         self.face_field = SelectionField("Choisir la paroi du trou ou la tige dans la vue 3D")
@@ -79,6 +81,10 @@ class ThreadSession(RecipePreview):
         form.addRow("Ou choisir dans la liste", self.support)
         self.kind_label = QLabel()
         form.addRow(self.kind_label)
+        self.adapt_diameter = QPushButton("Reprendre le diamètre de la tige")
+        self.adapt_diameter.setObjectName("threadAdaptDiameter")
+        self.adapt_diameter.clicked.connect(self.use_support_diameter)
+        form.addRow(self.adapt_diameter)
         self.catalog_size = QComboBox()
         self.catalog_size.setObjectName("threadCatalogSize")
         form.addRow("Préréglage", self.catalog_size)
@@ -143,6 +149,19 @@ class ThreadSession(RecipePreview):
         self.support.currentIndexChanged.connect(self.select_support)
         self.catalog_size.currentIndexChanged.connect(self.select_catalog)
         index = self.support.findData(self.face_ref) if self.face_ref else -1
+        if index < 0 and self.face_ref is not None:
+            try:
+                ref = self.face_ref
+                state = result_at(self.document, BodyStateRef(ref.object_id, ref.producer_id))
+                if state.shape is None:
+                    raise ValueError("Le support du filetage est indisponible à cette étape.")
+                face = resolve(state.shape, ref.topology, state.topology or static_topology(state.shape))
+                index = next((i for i in range(1, self.support.count())
+                              if self.support.itemData(i).object_id == ref.object_id
+                              and self.support.itemData(i).producer_id == ref.producer_id
+                              and self._support_faces[self.support.itemData(i)].IsSame(face)), -1)
+            except (ValueError, RuntimeError):
+                pass
         if index < 0 and not self.feature:
             selected = self.services.selection_items
             for item in selected if len(selected) == 1 else ():
@@ -171,6 +190,9 @@ class ThreadSession(RecipePreview):
         self.face_ref = self.support.currentData()
         self.face_field.set_value(self.face_ref, self.support.currentText() if self.face_ref else "")
         self.face_field.set_active(self.face_ref is None)
+        description = self._supports.get(self.face_ref)
+        self.adapt_diameter.setVisible(description is not None and not description[3])
+        self.adapt_diameter.setEnabled(description is not None and not description[3])
         if self.face_ref is None:
             self.kind_label.setText("Choisissez un trou ou une tige cylindrique.")
             self.changed()
@@ -178,12 +200,14 @@ class ThreadSession(RecipePreview):
         if self.feature and self.face_ref.object_id != self.feature.body_id:
             raise ValueError("Le support doit appartenir au même corps.")
         self.body_id = self.face_ref.object_id
-        description = self._supports.get(self.face_ref)
         if description is not None:
             cylinder, low, high, self.internal = description
             if not self.feature or not initial:
                 self.fields["length"].set_internal_value(min(6., high - low))
         self.kind_label.setText("Taraudage interne" if self.internal else "Filetage externe")
+        if description is not None:
+            self.kind_label.setText(self.kind_label.text() + " · " + ("avant-trou Ø" if self.internal else "tige Ø")
+                                    + self.services.display_units.format_length(2*cylinder.Radius()))
         saved = self.catalog_choice if initial and self.feature else None
         with QSignalBlocker(self.catalog_size):
             self.catalog_size.clear()
@@ -232,6 +256,30 @@ class ThreadSession(RecipePreview):
         if self.catalog_choice:
             self.catalog_info.setToolTip(self.catalog_choice.source)
         self.changed()
+
+    def use_support_diameter(self):
+        description = self._supports.get(self.face_ref)
+        if description is not None and not description[3]:
+            control = self.fields['diameter']
+            control.clear_equation()
+            control.set_internal_value(2*description[0].Radius())
+            self.parameters_changed()
+
+    def hovered(self, x, y):
+        if self.surface is None:
+            return
+        if x is None or y is None:
+            self.surface.highlight_regions()
+            return
+        face = None
+        try:
+            item = self.surface.pick_face(x, y)
+            if item is not None and any(ref.object_id == item.object_id and candidate.IsSame(item.shape)
+                                        for ref, candidate in self._support_faces.items()):
+                face = item.shape
+        except (ValueError, RuntimeError):
+            pass
+        self.surface.highlight_regions(hovered=face)
 
     def clicked(self, x, y):
         try:
