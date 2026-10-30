@@ -28,6 +28,7 @@ from .core.clipboard import ObjectClipboard, ClipboardError
 from .core.documents import DocumentManager
 from .core.history import HistoryBusyError
 from .core.preferences import PreferenceStore, PANEL_IDS, default_preferences_path, validate_preferences
+from .core.material_library import MaterialLibrary
 from .core.recovery import RecoveryService, default_recovery_directory
 from .core.tool_sessions import ToolSessionManager
 from .core.object_types import ObjectTypeRegistry
@@ -66,6 +67,8 @@ class MainWindow(QMainWindow):
         self.move(available.center() - self.rect().center())
         self.documents = DocumentManager(self)
         self.services = ApplicationServices(self.documents)
+        self.services._material_library = MaterialLibrary(
+            self.preference_store.path.with_name('materials.json') if self.preference_store.path is not None else None)
         from .ui.computation import Computations
         self.computations = Computations(self)
         self.services._computations = self.computations

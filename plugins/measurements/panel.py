@@ -1,7 +1,8 @@
-"""Read-only result panel following current selection and display units."""
+"""Measurements, material selection and personal catalog following selection."""
 from cadastrophe.plugin_api import DecimalSpinBox
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton, QGroupBox, QFormLayout, QDoubleSpinBox
+from PySide6.QtCore import Qt, QTimer, QSignalBlocker
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QComboBox, QLineEdit,
+                              QPushButton, QGroupBox, QFormLayout, QScrollArea, QFrame)
 from cadastrophe.plugin_api import Material, ObjectType
 
 from .geometry import MODES, MeasurementError, measure
@@ -14,7 +15,15 @@ class MeasurementsPanel(QWidget):
         super().__init__(parent)
         self.services = services
         self.last_result = None
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(content)
         title = QLabel("Mesures")
         layout.addWidget(title)
         self.mode = QComboBox()
@@ -43,7 +52,12 @@ class MeasurementsPanel(QWidget):
         layout.addWidget(self.recalculate)
         self.material_group = QGroupBox('Matériau des corps sélectionnés')
         material_layout = QFormLayout(self.material_group)
+        self.material_choice = QComboBox()
+        self.material_choice.setAccessibleName('Bibliothèque de matériaux')
+        self.material_choice.setToolTip('Choisissez un matériau ou saisissez un nom et une masse volumique personnalisés.')
+        material_layout.addRow('Bibliothèque', self.material_choice)
         self.material_name = QLineEdit()
+        self.material_name.setMaxLength(200)
         self.material_name.setAccessibleName('Nom du matériau')
         self.density = DecimalSpinBox()
         self.density.setRange(.000001, 1e12)
@@ -53,6 +67,15 @@ class MeasurementsPanel(QWidget):
         self.density.setAccessibleName('Masse volumique du matériau')
         material_layout.addRow('Nom', self.material_name)
         material_layout.addRow('Masse volumique', self.density)
+        density_hint = QLabel('Les valeurs proposées sont indicatives ; adaptez-les à votre nuance.')
+        density_hint.setWordWrap(True)
+        material_layout.addRow(density_hint)
+        self.save_material = QPushButton('Enregistrer comme matériau personnel')
+        material_layout.addRow(self.save_material)
+        self.material_feedback = QLabel()
+        self.material_feedback.setWordWrap(True)
+        self.material_feedback.setTextFormat(Qt.TextFormat.PlainText)
+        material_layout.addRow(self.material_feedback)
         self.apply_material = QPushButton('Appliquer aux corps sélectionnés')
         self.clear_material = QPushButton('Retirer le matériau')
         material_layout.addRow(self.apply_material)
@@ -60,6 +83,13 @@ class MeasurementsPanel(QWidget):
         self.apply_material.clicked.connect(self.assign_material)
         self.clear_material.clicked.connect(lambda: self.assign_material(clear=True))
         self.material_name.textChanged.connect(self.update_material_buttons)
+        self.material_name.textChanged.connect(self.sync_material_choice)
+        self.density.valueChanged.connect(self.sync_material_choice)
+        self.material_choice.currentIndexChanged.connect(self.choose_material)
+        self.save_material.clicked.connect(self.store_material)
+        self.populate_materials()
+        if self.services.material_library.error:
+            set_feedback(self.material_feedback, 'Bibliothèque personnelle indisponible : ' + self.services.material_library.error)
         self._material_selection = None
         layout.addWidget(self.material_group)
         layout.addStretch()
@@ -100,6 +130,49 @@ class MeasurementsPanel(QWidget):
         self.apply_material.setEnabled(bool(targets) and bool(self.material_name.text().strip()))
         document = self.services.active_document
         self.clear_material.setEnabled(bool(targets) and any(document.objects[key].material is not None for key in targets))
+        self.save_material.setEnabled(bool(self.material_name.text().strip()) and not self.services.material_library.error)
+
+    def populate_materials(self):
+        with QSignalBlocker(self.material_choice):
+            self.material_choice.clear()
+            self.material_choice.addItem('Matériau personnalisé…', None)
+            custom = self.services.material_library.custom_materials
+            for material in self.services.material_library.materials:
+                suffix = ' — personnel' if material in custom else ''
+                self.material_choice.addItem(material.name + suffix, material)
+        self.sync_material_choice()
+
+    def sync_material_choice(self, *_):
+        match = 0
+        for index in range(1, self.material_choice.count()):
+            material = self.material_choice.itemData(index)
+            if material.name == self.material_name.text().strip() and material.density_kg_m3 == self.density.value():
+                match = index
+                break
+        with QSignalBlocker(self.material_choice):
+            self.material_choice.setCurrentIndex(match)
+
+    def choose_material(self, *_):
+        material = self.material_choice.currentData()
+        with QSignalBlocker(self.material_name), QSignalBlocker(self.density):
+            self.material_name.setText(material.name if material is not None else '')
+            if material is not None:
+                self.density.setValue(material.density_kg_m3)
+        error = self.services.material_library.error
+        set_feedback(self.material_feedback, 'Bibliothèque personnelle indisponible : ' + error if error else '',
+                     'error' if error else 'info')
+        self.update_material_buttons()
+        if material is None:
+            self.material_name.setFocus()
+
+    def store_material(self):
+        try:
+            material = Material(self.material_name.text(), self.density.value())
+            self.services.material_library.add(material)
+            self.populate_materials()
+            set_feedback(self.material_feedback, 'Matériau enregistré dans votre bibliothèque personnelle.', 'info')
+        except (OSError, ValueError, RuntimeError) as exc:
+            set_feedback(self.material_feedback, str(exc))
 
     def assign_material(self, *, clear=False):
         try:

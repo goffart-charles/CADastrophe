@@ -16,6 +16,7 @@ from .core.feature_model import ReferenceSlot, EvaluationDiagnostic, ReferenceRe
 from .core.tool_sessions import ToolSession, EditSession
 from .core.units import DisplayUnits
 from .core.materials import Material
+from .core.material_library import MaterialLibrary
 from .core.variable_files import VariableSource, bind_library, export_variables, reload_variables
 from .core.curve_model import CurveObject, CurveParameters
 from .ui.length_input import LengthSpinBox
@@ -55,6 +56,7 @@ class ApplicationServices(QObject):
         self._selection_setter = None
         self._clipboard = None
         self._file_dialogs = None
+        self._material_library = MaterialLibrary()
         self._providers = {}
         self._computations = None
         documents.active_changed.connect(self.active_document_changed.emit)
@@ -135,6 +137,11 @@ class ApplicationServices(QObject):
     def file_dialogs(self):
         """Common native file pickers and project/import/export locations."""
         return self._file_dialogs
+
+    @property
+    def material_library(self):
+        """Built-in and personal materials; assignment saves a snapshot in the body."""
+        return self._material_library
 
     @property
     def selection_items(self):

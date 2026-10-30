@@ -28,7 +28,7 @@ Le projet est en développement. La plateforme actuellement utilisée pour la va
 - **Reprendre une construction** : modifier les premières étapes, réparer les références, désactiver des fonctions et insérer une opération dans l’historique, avec annulation et rétablissement.
 - **Décliner une pièce** : configurations partageant le même arbre, avec valeurs, expressions et activations propres à chaque variante ; modification commune ou locale explicite.
 - **Travailler sur plusieurs documents** : projets natifs `.cada`, copie de constructions paramétriques, préférences et récupération.
-- **Mesurer et échanger** : longueurs, surfaces, volumes et masses ; matériaux avec masse volumique par corps ; import STEP et exports STEP, STL, OBJ, 3MF et glTF/GLB.
+- **Mesurer et échanger** : longueurs, surfaces, volumes et masses ; matériaux par corps, choisis dans une liste ou créés dans une bibliothèque personnelle ; import STEP et exports STEP, STL, OBJ, 3MF et glTF/GLB.
 - **Étendre l’application** : plugins Python locaux, actions, panneaux, outils interactifs et types persistants ; voir le [guide de création des plugins](plugins/docs/README.md).
 
 ## Découverte

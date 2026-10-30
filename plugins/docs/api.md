@@ -52,6 +52,7 @@ et `mutates=False`.
 | `display_units` | Conversion d'affichage ; l'unité géométrique interne reste le mm. |
 | `clipboard` | Transport MIME vérifié, commun à l'application. |
 | `file_dialogs` | Sélecteurs natifs et mémorisation des emplacements. |
+| `material_library` | Catalogue de matériaux courants et personnels : `materials`, `custom_materials`, `add(Material)`, `error`. Les définitions personnelles sont enregistrées dans la configuration utilisateur ; `Document.set_materials` affecte une copie des valeurs au corps. |
 | `service(name)` | Recherche d'un service déclaré ; lève `LookupError` s'il est absent. |
 | `run_computation(steps, title, **callbacks)` | Calcul par étapes sur les tours Qt, avec annulation. |
 | `computation_available`, `computation_busy` | État du service de calcul. |

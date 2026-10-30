@@ -27,7 +27,7 @@ def window(tmp_path):
     root = tmp_path / "plugins"
     for name in ("primitives", "measurements"):
         shutil.copytree(Path(__file__).resolve().parents[1] / "plugins" / name, root / name)
-    window = MainWindow(plugin_directory=root)
+    window = MainWindow(plugin_directory=root, preferences_path=tmp_path/'preferences.json')
     window.documents.replace(window.viewport.document.id, demo_document())
     window.show()
     window.activateWindow()
